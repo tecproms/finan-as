@@ -71,8 +71,14 @@ class Database {
     this.notify('transactions_updated', transactions);
   }
 
-  // Obt�m URL do servidor backend PostgreSQL se configurado
+  // Obtém URL do servidor backend PostgreSQL se configurado
   getApiUrl() {
+    if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+      const host = window.location.hostname;
+      if (host !== 'localhost' && host !== '127.0.0.1' && !window.location.protocol.startsWith('file')) {
+        return `${window.location.origin}/api`;
+      }
+    }
     return 'http://76.13.163.214/api';
   }
 
