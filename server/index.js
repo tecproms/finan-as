@@ -1,0 +1,1088 @@
+// Servidor REST API e Conector PostgreSQL / Mercado Pago - FinControl Pro
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const https = require('https');
+const { query, initDatabase } = require('./db');
+require('dotenv').config();
+
+const app = express();
+const PORT = process.env.PORT || 3006;
+
+// Middlewares
+app.use(cors({ origin: '*' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// Servidor de arquivos estáticos (serve a interface PWA diretamente na mesma porta)
+app.use(express.static(path.join(__dirname, '..')));
+
+// --- ROTAS DA API ---
+
+// 1. Health Check & Status do Banco
+app.get('/api/health', async (req, res) => {
+  try {
+    const dbTest = await query('SELECT NOW() as server_time, (SELECT COUNT(*) FROM transactions) as tx_count');
+    res.json({
+      status: 'online',
+      service: 'FinControl Pro API',
+      database: 'PostgreSQL Conectado',
+      serverTime: dbTest.rows[0].server_time,
+      totalTransactions: parseInt(dbTest.rows[0].tx_count, 10),
+      version: '2.8'
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: 'error',
+      database: 'Desconectado',
+      message: err.message
+    });
+  }
+});
+
+// ==========================================
+// 2. TRANSAÇÕES FINANCEIRAS
+// ==========================================
+
+// Lista todas as transações
+app.get('/api/transactions', async (req, res) => {
+  try {
+    const { month, type, status } = req.query;
+    let sql = 'SELECT * FROM transactions WHERE 1=1';
+    const params = [];
+
+    if (month) {
+      params.push(`${month}%`);
+      sql += ` AND date::text LIKE $${params.length}`;
+    }
+    if (type) {
+      params.push(type);
+      sql += ` AND type = $${params.length}`;
+    }
+    if (status) {
+      params.push(status);
+      sql += ` AND status = $${params.length}`;
+    }
+
+    sql += ' ORDER BY date DESC, created_at DESC';
+    const result = await query(sql, params);
+
+    // Mapeia colunas do banco para o padrão camelCase do frontend
+    const transactions = result.rows.map(row => ({
+      id: row.id,
+      type: row.type,
+      description: row.description,
+      amount: parseFloat(row.amount),
+      category: row.category,
+      paymentMethod: row.payment_method,
+      date: row.date ? row.date.toISOString().split('T')[0] : '',
+      dueDate: row.due_date ? row.due_date.toISOString().split('T')[0] : '',
+      status: row.status,
+      installments: row.installments,
+      currentInstallment: row.current_installment,
+      notes: row.notes || '',
+      externalId: row.external_id || null,
+      createdAt: row.created_at
+    }));
+
+    res.json(transactions);
+  } catch (err) {
+    console.error('Erro ao buscar transações:', err);
+    res.status(500).json({ error: 'Falha ao buscar transações: ' + err.message });
+  }
+});
+
+// Cria uma transação
+app.post('/api/transactions', async (req, res) => {
+  try {
+    const t = req.body;
+    const id = t.id || 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const amount = parseFloat(t.amount) || 0;
+    const date = t.date || new Date().toISOString().split('T')[0];
+    const dueDate = t.dueDate || date;
+
+    const sql = `
+      INSERT INTO transactions (
+        id, type, description, amount, category, payment_method, 
+        date, due_date, status, installments, current_installment, notes, external_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      RETURNING *
+    `;
+    const params = [
+      id,
+      t.type || 'expense',
+      t.description || 'Lançamento',
+      amount,
+      t.category || 'Outros',
+      t.paymentMethod || 'PIX',
+      date,
+      dueDate,
+      t.status || 'paid',
+      parseInt(t.installments, 10) || 1,
+      parseInt(t.currentInstallment, 10) || 1,
+      t.notes || '',
+      t.externalId || null
+    ];
+
+    const result = await query(sql, params);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Erro ao criar transação:', err);
+    res.status(500).json({ error: 'Falha ao salvar transação: ' + err.message });
+  }
+});
+
+// Cria transações em lote (para importação de extrato ou sincronização)
+app.post('/api/transactions/batch', async (req, res) => {
+  try {
+    const items = req.body.transactions;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Array de transações inválido.' });
+    }
+
+    let insertedCount = 0;
+    for (const t of items) {
+      const id = t.id || 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+      const amount = parseFloat(t.amount) || 0;
+      const date = t.date || new Date().toISOString().split('T')[0];
+
+      const sql = `
+        INSERT INTO transactions (
+          id, type, description, amount, category, payment_method, 
+          date, due_date, status, installments, current_installment, notes, external_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        ON CONFLICT (external_id) DO NOTHING
+      `;
+      const params = [
+        id,
+        t.type || 'expense',
+        t.description || 'Lançamento',
+        amount,
+        t.category || 'Outros',
+        t.paymentMethod || 'Transferência',
+        date,
+        t.dueDate || date,
+        t.status || 'paid',
+        t.installments || 1,
+        t.currentInstallment || 1,
+        t.notes || '',
+        t.externalId || null
+      ];
+      const r = await query(sql, params);
+      if (r.rowCount > 0) insertedCount++;
+    }
+
+    res.json({ success: true, count: insertedCount });
+  } catch (err) {
+    console.error('Erro na importação em lote:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Atualiza transação
+app.put('/api/transactions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const t = req.body;
+    const sql = `
+      UPDATE transactions SET
+        type = COALESCE($2, type),
+        description = COALESCE($3, description),
+        amount = COALESCE($4, amount),
+        category = COALESCE($5, category),
+        payment_method = COALESCE($6, payment_method),
+        date = COALESCE($7, date),
+        due_date = COALESCE($8, due_date),
+        status = COALESCE($9, status),
+        notes = COALESCE($10, notes),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+    `;
+    const params = [
+      id,
+      t.type,
+      t.description,
+      t.amount !== undefined ? parseFloat(t.amount) : null,
+      t.category,
+      t.paymentMethod,
+      t.date,
+      t.dueDate,
+      t.status,
+      t.notes
+    ];
+    const result = await query(sql, params);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Transação não encontrada.' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Deleta transação
+app.delete('/api/transactions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await query('DELETE FROM transactions WHERE id = $1', [id]);
+    res.json({ success: true, message: 'Lançamento excluído com sucesso.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Limpa todos os dados no banco PostgreSQL (transações, agenda, notas)
+app.post('/api/clear-all', async (req, res) => {
+  try {
+    await query('DELETE FROM transactions');
+    await query('DELETE FROM appointments');
+    await query('DELETE FROM notes');
+    res.json({ success: true, message: 'Dados do PostgreSQL limpos com sucesso.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 3. AGENDA & COMPROMISSOS
+// ==========================================
+
+app.get('/api/appointments', async (req, res) => {
+  try {
+    const result = await query('SELECT * FROM appointments ORDER BY date ASC, time ASC');
+    const appointments = result.rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      date: row.date ? row.date.toISOString().split('T')[0] : '',
+      time: row.time,
+      cost: parseFloat(row.cost || 0),
+      location: row.location || '',
+      priority: row.priority,
+      completed: row.completed,
+      notes: row.notes || '',
+      createdAt: row.created_at
+    }));
+    res.json(appointments);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/appointments', async (req, res) => {
+  try {
+    const a = req.body;
+    const id = a.id || 'app_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const date = a.date || new Date().toISOString().split('T')[0];
+
+    const sql = `
+      INSERT INTO appointments (id, title, date, time, cost, location, priority, completed, notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `;
+    const params = [
+      id,
+      a.title || 'Compromisso',
+      date,
+      a.time || '09:00',
+      parseFloat(a.cost || 0),
+      a.location || '',
+      a.priority || 'medium',
+      a.completed || false,
+      a.notes || ''
+    ];
+    const result = await query(sql, params);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/appointments/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const a = req.body;
+    const sql = `
+      UPDATE appointments SET
+        title = COALESCE($2, title),
+        date = COALESCE($3, date),
+        time = COALESCE($4, time),
+        cost = COALESCE($5, cost),
+        location = COALESCE($6, location),
+        priority = COALESCE($7, priority),
+        completed = COALESCE($8, completed),
+        notes = COALESCE($9, notes),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+    `;
+    const params = [id, a.title, a.date, a.time, a.cost !== undefined ? parseFloat(a.cost) : null, a.location, a.priority, a.completed, a.notes];
+    const result = await query(sql, params);
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/appointments/:id', async (req, res) => {
+  try {
+    await query('DELETE FROM appointments WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 4. ANOTAÇÕES ÁGEIS
+// ==========================================
+
+app.get('/api/notes', async (req, res) => {
+  try {
+    const result = await query('SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC');
+    res.json(result.rows.map(r => ({
+      id: r.id,
+      title: r.title,
+      content: r.content,
+      tag: r.tag,
+      pinned: r.pinned,
+      color: r.color,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at
+    })));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/notes', async (req, res) => {
+  try {
+    const n = req.body;
+    const id = n.id || 'note_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+    const sql = `
+      INSERT INTO notes (id, title, content, tag, pinned, color)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `;
+    const params = [id, n.title || 'Anotação', n.content || '', n.tag || 'Geral', n.pinned || false, n.color || 'slate'];
+    const result = await query(sql, params);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/notes/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const n = req.body;
+    const sql = `
+      UPDATE notes SET
+        title = COALESCE($2, title),
+        content = COALESCE($3, content),
+        tag = COALESCE($4, tag),
+        pinned = COALESCE($5, pinned),
+        color = COALESCE($6, color),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+    `;
+    const params = [id, n.title, n.content, n.tag, n.pinned, n.color];
+    const result = await query(sql, params);
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/notes/:id', async (req, res) => {
+  try {
+    await query('DELETE FROM notes WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==========================================
+// 5. CONFIGURAÇÕES
+// ==========================================
+
+app.get('/api/settings', async (req, res) => {
+  try {
+    const result = await query('SELECT * FROM app_settings WHERE id = $1', ['default']);
+    if (result.rows.length === 0) {
+      return res.json({ userName: 'Usuário', groqModel: 'llama-3.1-8b-instant' });
+    }
+    const r = result.rows[0];
+    const resp = {
+      userName: r.user_name,
+      groqApiKey: r.groq_api_key,
+      groqModel: r.groq_model,
+      autolockMinutes: r.autolock_minutes,
+      mercadoPagoToken: r.mercado_pago_token,
+      mercadoPagoAutoSync: r.mercado_pago_auto_sync,
+      mercadoPagoLastSync: r.mercado_pago_last_sync,
+      interSettings: r.inter_settings || {}
+    };
+    // Campos extras (se existirem na tabela)
+    if (r.auth_data) resp.auth = r.auth_data;
+    if (r.pluggy_items) resp.pluggyItems = r.pluggy_items;
+    if (r.pluggy_client_id) resp.pluggyClientId = r.pluggy_client_id;
+    if (r.pluggy_client_secret) resp.pluggyClientSecret = r.pluggy_client_secret;
+    if (r.initial_balance !== undefined && r.initial_balance !== null) resp.initialBalance = r.initial_balance;
+    res.json(resp);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/settings', async (req, res) => {
+  try {
+    const s = req.body;
+
+    // Garante que as colunas extras existam na tabela
+    await query(`
+      DO $$ BEGIN
+        ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS auth_data JSONB;
+        ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS pluggy_items JSONB;
+        ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS pluggy_client_id TEXT;
+        ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS pluggy_client_secret TEXT;
+        ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS initial_balance NUMERIC DEFAULT 0;
+      EXCEPTION WHEN others THEN NULL;
+      END $$;
+    `).catch(() => {});
+
+    const sql = `
+      INSERT INTO app_settings (
+        id, user_name, groq_api_key, groq_model, autolock_minutes, 
+        mercado_pago_token, mercado_pago_auto_sync, inter_settings,
+        auth_data, pluggy_items, pluggy_client_id, pluggy_client_secret, initial_balance,
+        updated_at
+      ) VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP)
+      ON CONFLICT (id) DO UPDATE SET
+        user_name = COALESCE(EXCLUDED.user_name, app_settings.user_name),
+        groq_api_key = COALESCE(EXCLUDED.groq_api_key, app_settings.groq_api_key),
+        groq_model = COALESCE(EXCLUDED.groq_model, app_settings.groq_model),
+        autolock_minutes = COALESCE(EXCLUDED.autolock_minutes, app_settings.autolock_minutes),
+        mercado_pago_token = COALESCE(EXCLUDED.mercado_pago_token, app_settings.mercado_pago_token),
+        mercado_pago_auto_sync = COALESCE(EXCLUDED.mercado_pago_auto_sync, app_settings.mercado_pago_auto_sync),
+        inter_settings = COALESCE(EXCLUDED.inter_settings, app_settings.inter_settings),
+        auth_data = COALESCE(EXCLUDED.auth_data, app_settings.auth_data),
+        pluggy_items = COALESCE(EXCLUDED.pluggy_items, app_settings.pluggy_items),
+        pluggy_client_id = COALESCE(EXCLUDED.pluggy_client_id, app_settings.pluggy_client_id),
+        pluggy_client_secret = COALESCE(EXCLUDED.pluggy_client_secret, app_settings.pluggy_client_secret),
+        initial_balance = COALESCE(EXCLUDED.initial_balance, app_settings.initial_balance),
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+    `;
+    const params = [
+      s.userName || 'Usuário',
+      s.groqApiKey || '',
+      s.groqModel || 'llama-3.1-8b-instant',
+      s.autolockMinutes || 5,
+      s.mercadoPagoToken || '',
+      s.mercadoPagoAutoSync || false,
+      JSON.stringify(s.interSettings || {}),
+      s.auth ? JSON.stringify(s.auth) : null,
+      s.pluggyItems ? JSON.stringify(s.pluggyItems) : null,
+      s.pluggyClientId || null,
+      s.pluggyClientSecret || null,
+      s.initialBalance !== undefined ? s.initialBalance : null
+    ];
+    await query(sql, params);
+    res.json({ success: true, message: 'Configurações salvas no PostgreSQL com sucesso!' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint para consultar o Saldo Real da Conta no Mercado Pago em tempo real
+app.get('/api/mercadopago/balance', async (req, res) => {
+  try {
+    let token = req.query.token;
+    if (!token) {
+      const s = await query('SELECT mercado_pago_token FROM app_settings WHERE id = $1', ['default']);
+      token = s.rows[0]?.mercado_pago_token;
+    }
+
+    if (!token || token.trim().length < 10) {
+      return res.status(400).json({ error: 'Token do Mercado Pago não configurado.' });
+    }
+
+    // 1. Obtém dados do usuário
+    const meData = await new Promise((resolve) => {
+      const r = https.request({
+        hostname: 'api.mercadopago.com',
+        path: '/users/me',
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token.trim()}`,
+          'User-Agent': 'FinControlPro/2.8'
+        }
+      }, (res) => {
+        let d = '';
+        res.on('data', c => d += c);
+        res.on('end', () => {
+          try { resolve(JSON.parse(d)); } catch (_) { resolve({}); }
+        });
+      });
+      r.on('error', () => resolve({}));
+      r.setTimeout(5000, () => { r.destroy(); resolve({}); });
+      r.end();
+    });
+
+    const userId = meData?.id;
+    if (!userId) {
+      return res.status(400).json({ error: 'Não foi possível validar usuário no Mercado Pago.' });
+    }
+
+    // 2. Consulta saldo real em conta
+    const balData = await new Promise((resolve) => {
+      const r = https.request({
+        hostname: 'api.mercadopago.com',
+        path: `/users/${userId}/mercadopago_account/balance`,
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token.trim()}`,
+          'User-Agent': 'FinControlPro/2.8'
+        }
+      }, (res) => {
+        let d = '';
+        res.on('data', c => d += c);
+        res.on('end', () => {
+          try { resolve(JSON.parse(d)); } catch (_) { resolve({}); }
+        });
+      });
+      r.on('error', () => resolve({}));
+      r.setTimeout(5000, () => { r.destroy(); resolve({}); });
+      r.end();
+    });
+
+    res.json({
+      success: true,
+      userId: userId,
+      nickname: meData.nickname || meData.first_name || 'Mercado Pago',
+      totalAmount: balData?.total_amount || 0,
+      availableAmount: balData?.available_amount || 0,
+      unavailableAmount: balData?.unavailable_amount || 0
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Debug endpoint - retorna dados CRUS da API do Mercado Pago
+app.get('/api/mercadopago/debug', async (req, res) => {
+  try {
+    const token = req.query.token || req.headers['x-mp-token'];
+    if (!token) {
+      // Try from DB
+      const s = await query('SELECT mercado_pago_token FROM app_settings WHERE id = $1', ['default']);
+      const dbToken = s.rows[0]?.mercado_pago_token;
+      if (!dbToken) return res.status(400).json({ error: 'Token não fornecido. Use ?token=SEU_TOKEN' });
+      req.query.token = dbToken;
+    }
+    const t = (req.query.token || token).trim();
+
+    // Get user profile
+    const meData = await new Promise((resolve) => {
+      const r = https.request({ hostname: 'api.mercadopago.com', path: '/users/me', method: 'GET',
+        headers: { 'Authorization': `Bearer ${t}` }
+      }, (response) => { let d = ''; response.on('data', c => d += c); response.on('end', () => { try { resolve(JSON.parse(d)); } catch(_) { resolve({}); } }); });
+      r.on('error', () => resolve({})); r.end();
+    });
+
+    // Get payments
+    const mpData = await new Promise((resolve) => {
+      const r = https.request({ hostname: 'api.mercadopago.com', path: '/v1/payments/search?sort=date_created&criteria=desc&limit=10', method: 'GET',
+        headers: { 'Authorization': `Bearer ${t}` }
+      }, (response) => { let d = ''; response.on('data', c => d += c); response.on('end', () => { try { resolve(JSON.parse(d)); } catch(_) { resolve({}); } }); });
+      r.on('error', () => resolve({})); r.end();
+    });
+
+    const results = (mpData.results || []).map(p => ({
+      id: p.id,
+      description: p.description,
+      transaction_amount: p.transaction_amount,
+      status: p.status,
+      status_detail: p.status_detail,
+      operation_type: p.operation_type,
+      payment_type_id: p.payment_type_id,
+      payment_method_id: p.payment_method_id,
+      collector_id: p.collector_id,
+      payer_id: p.payer?.id,
+      payer_name: [p.payer?.first_name, p.payer?.last_name].filter(Boolean).join(' '),
+      payer_email: p.payer?.email,
+      money_release_date: p.money_release_date,
+      money_release_status: p.money_release_status,
+      date_created: p.date_created,
+      date_approved: p.date_approved,
+      net_received_amount: p.transaction_details?.net_received_amount,
+      total_paid_amount: p.transaction_details?.total_paid_amount,
+      point_of_interaction_type: p.point_of_interaction?.type,
+      point_of_interaction_business: p.point_of_interaction?.business_info,
+      _is_collector_me: meData?.id ? String(p.collector_id) === String(meData.id) : 'unknown',
+      _is_payer_me: meData?.id ? String(p.payer?.id) === String(meData.id) : 'unknown',
+    }));
+
+    res.json({
+      myUserId: meData?.id,
+      myNickname: meData?.nickname,
+      paymentsCount: results.length,
+      payments: results
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Função utilitária centralizada para sincronização do Mercado Pago
+async function executeMercadoPagoSync(customToken = null) {
+  let token = customToken;
+  if (!token) {
+    const s = await query('SELECT mercado_pago_token, mercado_pago_auto_sync FROM app_settings WHERE id = $1', ['default']);
+    token = s.rows[0]?.mercado_pago_token;
+  }
+
+  if (!token || token.trim().length < 10) {
+    return { success: false, error: 'Token do Mercado Pago não configurado.' };
+  }
+
+  // 1. Obtém perfil do usuário para identificar quem recebe vs quem paga
+  let myUserId = null;
+  let walletBalance = null;
+  try {
+    const meData = await new Promise((resolve) => {
+      const req = https.request({
+        hostname: 'api.mercadopago.com',
+        path: '/users/me',
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token.trim()}`,
+          'User-Agent': 'FinControlPro/2.8'
+        }
+      }, (res) => {
+        let d = '';
+        res.on('data', c => d += c);
+        res.on('end', () => {
+          try { resolve(JSON.parse(d)); } catch (_) { resolve({}); }
+        });
+      });
+      req.on('error', () => resolve({}));
+      req.setTimeout(5000, () => { req.destroy(); resolve({}); });
+      req.end();
+    });
+    myUserId = meData?.id;
+
+    if (myUserId) {
+      const balData = await new Promise((resolve) => {
+        const req = https.request({
+          hostname: 'api.mercadopago.com',
+          path: `/users/${myUserId}/mercadopago_account/balance`,
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token.trim()}`,
+            'User-Agent': 'FinControlPro/2.8'
+          }
+        }, (res) => {
+          let d = '';
+          res.on('data', c => d += c);
+          res.on('end', () => {
+            try { resolve(JSON.parse(d)); } catch (_) { resolve({}); }
+          });
+        });
+        req.on('error', () => resolve({}));
+        req.setTimeout(5000, () => { req.destroy(); resolve({}); });
+        req.end();
+      });
+      if (balData?.available_amount !== undefined) {
+        walletBalance = parseFloat(balData.available_amount);
+      }
+    }
+  } catch (e) {
+    console.warn('Não foi possível obter dados complementares do perfil MP:', e.message);
+  }
+
+  // 2. Busca movimentações recentes no Mercado Pago
+  const mpUrl = 'https://api.mercadopago.com/v1/payments/search?sort=date_created&criteria=desc&limit=50';
+  const mpData = await new Promise((resolve, reject) => {
+    const urlObj = new URL(mpUrl);
+    const options = {
+      hostname: urlObj.hostname,
+      path: urlObj.pathname + urlObj.search,
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token.trim()}`,
+        'User-Agent': 'FinControlPro/2.8'
+      }
+    };
+
+    const request = https.request(options, (response) => {
+      let data = '';
+      response.on('data', chunk => data += chunk);
+      response.on('end', () => {
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(new Error('Resposta inválida do Mercado Pago: ' + e.message));
+          }
+        } else {
+          try {
+            const errJson = JSON.parse(data);
+            reject(new Error(errJson.message || `Erro HTTP ${response.statusCode} do Mercado Pago`));
+          } catch (_) {
+            reject(new Error(`Erro HTTP ${response.statusCode} do Mercado Pago`));
+          }
+        }
+      });
+    });
+
+    request.on('error', err => reject(err));
+    request.setTimeout(10000, () => {
+      request.destroy();
+      reject(new Error('Tempo limite excedido ao conectar com a API do Mercado Pago'));
+    });
+    request.end();
+  });
+
+  const results = mpData.results || [];
+  let insertedCount = 0;
+  const importedItems = [];
+
+  for (const p of results) {
+    const extId = 'mp_' + p.id;
+    const isApproved = p.status === 'approved';
+    if (!isApproved) continue;
+
+    // Determina se é entrada (Receita) ou saída (Despesa) com máxima precisão
+    let isIncome = false;
+    const descLower = (p.description || '').toLowerCase();
+
+    // Regra 1: Estornos, devoluções e reembolsos são sempre Receitas
+    if (descLower.includes('extorno') || descLower.includes('estorno') || descLower.includes('reembolso') || descLower.includes('devolu')) {
+      isIncome = true;
+    }
+    // Regra 2: Se o usuário logado for o collector_id, ele RECEBEU o dinheiro (Receita)
+    else if (myUserId && String(p.collector_id) === String(myUserId)) {
+      isIncome = true;
+    }
+    // Regra 3: Se o dinheiro foi liberado para o usuário (net_received_amount > 0 e money_release_date)
+    else if (p.transaction_details && p.transaction_details.net_received_amount > 0 && p.money_release_date) {
+      isIncome = true;
+    }
+    // Regra 4: Se o usuário é o pagador (payer.id = myUserId)
+    else if (myUserId && p.payer && String(p.payer.id) === String(myUserId)) {
+      isIncome = false;
+    }
+    // Regra 5: Fallback textual caso myUserId não esteja disponível
+    else {
+      if (descLower.includes('recebimento') || descLower.includes('recebido') || descLower.includes('venda')) {
+        isIncome = true;
+      } else {
+        isIncome = false;
+      }
+    }
+
+    const type = isIncome ? 'income' : 'expense';
+    const amount = Math.abs(p.transaction_amount || 0);
+
+    let desc = p.description || '';
+    const method = (p.payment_method_id || 'PIX').toUpperCase();
+    if (!desc || desc.length < 2) {
+      if (isIncome) {
+        const payerName = p.payer ? [p.payer.first_name, p.payer.last_name].filter(Boolean).join(' ') : '';
+        desc = payerName ? `Pix recebido de ${payerName}` : `Recebimento Mercado Pago (${method})`;
+      } else {
+        desc = `Pagamento Mercado Pago (${method})`;
+      }
+    }
+
+    let category = isIncome ? 'Serviços' : 'Outros';
+    if (lower.includes('mercado') || lower.includes('supermercado') || lower.includes('pires') || lower.includes('alimento') || lower.includes('padaria')) category = 'Alimentação';
+    else if (lower.includes('gasolina') || lower.includes('combust') || lower.includes('posto') || lower.includes('auto posto')) category = 'Transporte';
+    else if (lower.includes('luz') || lower.includes('energia') || lower.includes('internet') || lower.includes('agua')) category = 'Moradia';
+    else if (lower.includes('tabacaria') || lower.includes('bar') || lower.includes('restaurante') || lower.includes('lanchonete')) category = 'Lazer';
+    else if (lower.includes('farmacia') || lower.includes('drogaria') || lower.includes('saude') || lower.includes('hospital')) category = 'Saúde';
+
+    let paymentMethod = 'PIX';
+    if (p.payment_type_id === 'credit_card') paymentMethod = 'Cartão de Crédito';
+    else if (p.payment_type_id === 'debit_card') paymentMethod = 'Cartão de Débito';
+    else if (p.payment_method_id === 'pix') paymentMethod = 'PIX';
+    else if (p.payment_type_id === 'ticket') paymentMethod = 'Boleto';
+
+    const date = (p.date_approved || p.date_created).split('T')[0];
+    const id = 'tx_' + Date.now() + '_' + p.id;
+
+    const sql = `
+      INSERT INTO transactions (
+        id, type, description, amount, category, payment_method,
+        date, due_date, status, notes, external_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ON CONFLICT (external_id) DO UPDATE SET
+        type = EXCLUDED.type,
+        description = EXCLUDED.description,
+        amount = EXCLUDED.amount,
+        category = EXCLUDED.category,
+        payment_method = EXCLUDED.payment_method,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+    `;
+    const params = [
+      id, type, desc, amount, category, paymentMethod,
+      date, date, 'paid', `Sincronizado via Mercado Pago API (ID: ${p.id})`, extId
+    ];
+
+    const r = await query(sql, params);
+    if (r.rowCount > 0) {
+      insertedCount++;
+      importedItems.push(r.rows[0]);
+    }
+  }
+
+  // Atualiza data da última sincronização
+  await query(`
+    UPDATE app_settings SET 
+      mercado_pago_last_sync = CURRENT_TIMESTAMP 
+    WHERE id = 'default'
+  `);
+
+  await query(`
+    INSERT INTO mp_sync_logs (imported_count, status, details)
+    VALUES ($1, 'success', $2)
+  `, [insertedCount, `${results.length} pagamentos analisados, ${insertedCount} atualizados/importados`]);
+
+  let msg = `${insertedCount} movimentações do Mercado Pago sincronizadas com sucesso!`;
+  if (walletBalance !== null) {
+    msg += ` Saldo disponível na conta Mercado Pago: R$ ${walletBalance.toFixed(2).replace('.', ',')}`;
+  }
+
+  return {
+    success: true,
+    totalAnalizados: results.length,
+    novosImportados: insertedCount,
+    saldoContaMercadoPago: walletBalance,
+    mensagem: msg
+  };
+}
+
+// Endpoint de sincronização manual via Frontend
+app.post('/api/mercadopago/sync', async (req, res) => {
+  try {
+    const result = await executeMercadoPagoSync(req.body.accessToken);
+    if (!result.success && result.error) {
+      return res.status(400).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (err) {
+    console.error('Erro na sincronização Mercado Pago:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint Webhook Oficial do Mercado Pago (Recebe notificações em tempo real)
+app.all('/api/mercadopago/webhook', async (req, res) => {
+  // Responde imediatamente 200 OK para o Mercado Pago confirmar recebimento
+  res.status(200).json({ status: 'received' });
+
+  try {
+    const queryData = req.query || {};
+    const bodyData = req.body || {};
+    console.log('📬 [MP Webhook] Notificação recebida:', { query: queryData, body: bodyData });
+
+    // Se a notificação for de pagamento, dispara a sincronização silenciosa
+    const topic = queryData.topic || queryData.type || bodyData.type || bodyData.action;
+    if (!topic || topic.includes('payment') || topic.includes('merchant_order')) {
+      console.log('⚡ [MP Webhook] Processando atualização de transação em tempo real...');
+      const syncRes = await executeMercadoPagoSync();
+      console.log('✅ [MP Webhook] Sincronização em tempo real concluída:', syncRes?.mensagem || 'OK');
+    }
+  } catch (err) {
+    console.error('❌ [MP Webhook] Erro ao processar webhook em background:', err.message);
+  }
+});
+
+// Endpoint Webhook Oficial da Pluggy Open Finance
+app.post('/api/pluggy/webhook', async (req, res) => {
+  // Responde imediatamente 200 OK (requisito obrigatório da Pluggy em até 5s)
+  res.status(200).json({ received: true });
+
+  try {
+    const event = req.body || {};
+    console.log('📬 [Pluggy Webhook] Evento recebido:', event.event, 'Item ID:', event.itemId);
+
+    if (event.event === 'item/created' || event.event === 'item/updated') {
+      const itemId = event.itemId;
+      if (itemId) {
+        console.log(`⚡ [Pluggy Webhook] Sincronizando contas e movimentações do item ${itemId}...`);
+        // O cliente ou background sync atualiza as transações no PostgreSQL
+      }
+    }
+  } catch (err) {
+    console.error('❌ [Pluggy Webhook] Erro ao processar:', err.message);
+  }
+});
+
+// ==========================================
+// 8. WEBHOOK EVOLUTION API (WHATSAPP ASSISTANT)
+// ==========================================
+app.post('/api/evolution/webhook', async (req, res) => {
+  res.status(200).json({ received: true });
+
+  try {
+    const body = req.body || {};
+    const event = body.event || body.type;
+
+    // Apenas mensagens recebidas (MESSAGES_UPSERT)
+    if (event !== 'messages.upsert' && event !== 'MESSAGES_UPSERT') {
+      return;
+    }
+
+    const data = body.data || body;
+    const msgObj = data.message || (data.messages && data.messages[0]);
+    if (!msgObj) return;
+
+    const key = data.key || (data.messages && data.messages[0]?.key);
+    if (!key || key.fromMe) return; // Ignora mensagens enviadas pelo próprio bot
+
+    const remoteJid = key.remoteJid || '';
+    const senderNumber = remoteJid.split('@')[0];
+
+    // Texto da mensagem
+    const textMessage = msgObj.conversation || 
+      (msgObj.extendedTextMessage && msgObj.extendedTextMessage.text) || 
+      '';
+
+    if (!textMessage || typeof textMessage !== 'string') return;
+    const trimmed = textMessage.trim();
+
+    console.log(`💬 [Evolution Webhook] Mensagem recebida de ${senderNumber}: "${trimmed}"`);
+
+    // Busca configurações do app
+    const sRes = await query('SELECT * FROM app_settings WHERE id = $1', ['default']);
+    const settings = sRes.rows[0] || {};
+    const evoSettings = settings.evolution_settings || {};
+    const authPhone = (evoSettings.userPhone || '').replace(/\D/g, '');
+
+    // Se houver telefone configurado, valida autorização
+    if (authPhone && !senderNumber.endsWith(authPhone.slice(-8))) {
+      console.warn(`[Evolution Webhook] Mensagem de número não autorizado: ${senderNumber}`);
+      return;
+    }
+
+    const lower = trimmed.toLowerCase();
+    let reply = '';
+
+    // Consultas Rápidas
+    if (lower.includes('saldo') || lower.includes('quanto tenho') || lower.includes('resumo')) {
+      const txs = await query("SELECT type, amount, status FROM transactions WHERE date_trunc('month', date) = date_trunc('month', CURRENT_DATE)");
+      let totalInc = 0, totalExp = 0, pendingExp = 0;
+      txs.rows.forEach(t => {
+        const val = parseFloat(t.amount) || 0;
+        if (t.type === 'income') totalInc += val;
+        else if (t.type === 'expense') {
+          if (t.status === 'paid') totalExp += val;
+          else pendingExp += val;
+        }
+      });
+      const bal = totalInc - totalExp;
+      reply = `📊 *Resumo Financeiro do Mês:*\n\n` +
+        `• 💰 *Receitas:* R$ ${totalInc.toFixed(2)}\n` +
+        `• 💸 *Despesas Pagas:* R$ ${totalExp.toFixed(2)}\n` +
+        `• ⏳ *A Pagar em Aberto:* R$ ${pendingExp.toFixed(2)}\n` +
+        `• 🏦 *Saldo Atual:* *R$ ${bal.toFixed(2)}*`;
+    }
+    // Lançamento de Gastos simples (ex: "gastei 50 no mercado", "paguei 30 no lanche")
+    else if (lower.includes('gastei ') || lower.includes('comprei ') || lower.includes('paguei ')) {
+      const valMatch = trimmed.match(/(\d+(?:[.,]\d{1,2})?)/);
+      if (valMatch) {
+        const amount = parseFloat(valMatch[1].replace(',', '.'));
+        let desc = trimmed.replace(/\b(gastei|comprei|paguei|reais|r\$|hoje|no|na|de)\b/gi, '').trim();
+        if (!desc) desc = 'Despesa via WhatsApp';
+        
+        await query(
+          'INSERT INTO transactions (type, description, amount, category, payment_method, date, status) VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, $6)',
+          ['expense', desc, amount, 'Geral', 'WhatsApp', 'paid']
+        );
+
+        reply = `✅ *Despesa Registrada!*\n\n• 💸 *Descrição:* ${desc}\n• 💵 *Valor:* R$ ${amount.toFixed(2)}\n• 📅 *Data:* Hoje\n• 📌 *Status:* Pago ✅`;
+      }
+    }
+    // Recebimento simples (ex: "recebi 1500 de salario", "recebi 100 via pix")
+    else if (lower.includes('recebi ') || lower.includes('ganhei ')) {
+      const valMatch = trimmed.match(/(\d+(?:[.,]\d{1,2})?)/);
+      if (valMatch) {
+        const amount = parseFloat(valMatch[1].replace(',', '.'));
+        let desc = trimmed.replace(/\b(recebi|ganhei|reais|r\$|hoje|no|na|de|via|pix)\b/gi, '').trim();
+        if (!desc) desc = 'Receita via WhatsApp';
+        
+        await query(
+          'INSERT INTO transactions (type, description, amount, category, payment_method, date, status) VALUES ($1, $2, $3, $4, $5, CURRENT_DATE, $6)',
+          ['income', desc, amount, 'Geral', 'PIX', 'paid']
+        );
+
+        reply = `✅ *Receita Registrada!*\n\n• 💰 *Descrição:* ${desc}\n• 💵 *Valor:* R$ ${amount.toFixed(2)}\n• 📅 *Data:* Hoje\n• 📌 *Status:* Recebido ✅`;
+      }
+    }
+
+    if (!reply) {
+      reply = `🤖 *FinControl Pro*\n\nVocê pode me enviar:\n• 💸 *"Gastei 50 no almoço"*\n• 💰 *"Recebi 1500 de salário"*\n• 🏦 *"Qual meu saldo atual?"*`;
+    }
+
+    // Dispara mensagem de volta via Evolution API se configurada
+    const evoUrl = (evoSettings.apiUrl || 'http://localhost:8080').replace(/\/+$/, '');
+    const evoKey = evoSettings.apiKey || '';
+    const evoInst = evoSettings.instanceName || 'fincontrol';
+
+    if (evoUrl && evoInst) {
+      try {
+        await fetch(`${evoUrl}/message/sendText/${encodeURIComponent(evoInst)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': evoKey },
+          body: JSON.stringify({ number: senderNumber, text: reply })
+        });
+      } catch (errSend) {
+        console.warn('Erro ao responder no WhatsApp via Evolution:', errSend.message);
+      }
+    }
+  } catch (err) {
+    console.error('❌ [Evolution Webhook] Erro ao processar:', err.message);
+  }
+});
+
+// Inicialização do servidor
+async function startServer() {
+  try {
+    await initDatabase();
+    app.listen(PORT, () => {
+      console.log(`\n==================================================`);
+      console.log(`🚀 FINCONTROL PRO API RODANDO NA PORTA ${PORT}`);
+      console.log(`🐘 Banco de Dados: PostgreSQL (Localhost:5432)`);
+      console.log(`🌐 Painel aaPanel: Integrado e Ativo`);
+      console.log(`⚡ Webhook MP: http://76.13.163.214/api/mercadopago/webhook`);
+      console.log(`==================================================\n`);
+
+      // Agenda auto-sincronização periódica em segundo plano (a cada 5 minutos)
+      const SYNC_INTERVAL = 5 * 60 * 1000; // 5 minutos
+      setInterval(async () => {
+        try {
+          const res = await executeMercadoPagoSync();
+          if (res && res.success && res.novosImportados > 0) {
+            console.log(`🔄 [Auto-Sync MP Background] ${res.novosImportados} novas movimentações importadas com sucesso.`);
+          }
+        } catch (e) {
+          // Erro silencioso se token ainda não estiver configurado
+        }
+      }, SYNC_INTERVAL);
+    });
+  } catch (err) {
+    console.error('❌ Falha ao iniciar servidor:', err.message);
+    console.log('Tentando rodar apenas servidor HTTP para diagnóstico...');
+    app.listen(PORT, () => {
+      console.log(`⚠️ Servidor HTTP rodando na porta ${PORT} (Aguardando ajuste de credenciais do banco)`);
+    });
+  }
+}
+
+startServer();

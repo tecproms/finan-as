@@ -1,0 +1,203 @@
+/* Estilos Customizados FinControl Pro - Mobile-First Design System */
+
+:root {
+  --app-bg: #090d16;
+  --card-bg: #131d31;
+  --card-border: #1e293b;
+  --primary: #10b981;
+  --primary-hover: #059669;
+  --primary-light: rgba(16, 185, 129, 0.15);
+  --danger: #ef4444;
+  --danger-light: rgba(239, 68, 68, 0.15);
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Reset e base */
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--app-bg);
+  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+  overflow-x: hidden;
+  padding-bottom: calc(72px + var(--safe-bottom));
+}
+
+@media (min-width: 768px) {
+  body {
+    padding-bottom: 2rem;
+  }
+}
+
+/* Safe areas para celulares com entalhe/iPhone notch */
+.safe-top-padding {
+  padding-top: max(1rem, var(--safe-top));
+}
+
+.safe-bottom-padding {
+  padding-bottom: max(1rem, var(--safe-bottom));
+}
+
+/* Scrollbar moderna e discreta */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Glassmorphism e superfícies */
+.glass-panel {
+  background: rgba(19, 29, 49, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-nav {
+  background: rgba(9, 13, 22, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Animações suaves de transição */
+.tab-content {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Modal overlays e animações */
+.modal-overlay {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.modal-sheet {
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Efeito pulsante de gravação de áudio */
+.recording-pulse {
+  animation: pulseGlow 1.4s infinite;
+}
+
+@keyframes pulseGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+/* Efeito badge ativo na navegação inferior */
+.nav-item.active {
+  color: #10b981;
+}
+.nav-item.active .nav-icon {
+  transform: translateY(-2px);
+}
+.nav-icon {
+  transition: transform 0.15s ease;
+}
+
+/* Tags de anotações */
+.note-card {
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.note-card:active {
+  transform: scale(0.98);
+}
+
+/* Transações lista */
+.transaction-item {
+  transition: background-color 0.15s ease;
+}
+.transaction-item:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* Balões de chat */
+.chat-bubble-user {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+}
+
+.chat-bubble-bot {
+  background: #1e293b;
+  color: #f1f5f9;
+  border-bottom-left-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Card de ação da IA no chat */
+.ai-action-card {
+  border-left: 3px solid #10b981;
+  background: rgba(16, 185, 129, 0.06);
+}
+
+/* Teclado numérico PIN e Tela de Bloqueio */
+.keypad-btn {
+  transition: all 0.12s ease;
+  user-select: none;
+}
+.keypad-btn:active {
+  transform: scale(0.92);
+  background-color: rgba(16, 185, 129, 0.2);
+}
+
+.shake-error {
+  animation: shake 0.35s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes shake {
+  10%, 90% { transform: translate3d(-3px, 0, 0); }
+  20%, 80% { transform: translate3d(5px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+  40%, 60% { transform: translate3d(6px, 0, 0); }
+}

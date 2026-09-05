@@ -1,0 +1,1658 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>FinControl Pro - Finanças, Agenda & IA</title>
+  
+  <!-- PWA & Mobile Meta Tags -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#090d16" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="FinControl" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" href="icons/icon-192.png" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            appbg: '#090d16',
+            cardbg: '#131d31',
+            cardborder: '#1e293b',
+            primary: {
+              DEFAULT: '#10b981',
+              dark: '#059669',
+              light: '#34d399'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- QRious para QR Code do Celular -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+
+  <!-- Estilos customizados -->
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body class="bg-[#090d16] text-slate-100 min-h-screen selection:bg-emerald-500/30 selection:text-emerald-200">
+
+  <!-- TOP HEADER -->
+  <header class="sticky top-0 z-30 glass-nav px-3.5 sm:px-6 lg:px-8 py-2.5 border-b border-slate-800 safe-top-padding">
+    <div class="w-full max-w-[1720px] mx-auto flex items-center justify-between gap-3 sm:gap-6">
+      <!-- Marca / Logo -->
+      <div class="flex items-center gap-2.5 cursor-pointer shrink-0" onclick="app.switchTab('dashboard')">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-black text-sm shadow-md shadow-emerald-500/20">
+          F$
+        </div>
+        <div>
+          <h1 class="font-extrabold text-sm sm:text-base tracking-tight text-white flex items-center gap-1.5">
+            FinControl <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-semibold border border-emerald-500/30">PRO</span>
+          </h1>
+        </div>
+      </div>
+
+      <!-- Desktop Navigation Menu (Visível em tablets e computadores) -->
+      <nav class="hidden md:flex items-center gap-1.5 bg-slate-800/60 p-1 rounded-2xl border border-slate-700/50">
+        <button onclick="app.switchTab('dashboard')" data-tab="dashboard" class="nav-desktop-item px-3.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 transition-all shadow-sm">
+          <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Início
+        </button>
+        <button onclick="app.switchTab('finances')" data-tab="finances" class="nav-desktop-item px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 flex items-center gap-1.5 transition-all border border-transparent">
+          <i data-lucide="receipt" class="w-4 h-4"></i> Finanças
+        </button>
+        <button onclick="app.switchTab('agenda')" data-tab="agenda" class="nav-desktop-item px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 flex items-center gap-1.5 transition-all border border-transparent relative">
+          <i data-lucide="calendar" class="w-4 h-4"></i> Agenda
+          <span id="badge-agenda-desktop" class="hidden w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        </button>
+        <button onclick="app.switchTab('notes')" data-tab="notes" class="nav-desktop-item px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 flex items-center gap-1.5 transition-all border border-transparent">
+          <i data-lucide="sticky-note" class="w-4 h-4"></i> Notas
+        </button>
+        <button onclick="app.switchTab('chat')" data-tab="chat" class="nav-desktop-item px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 flex items-center gap-1.5 transition-all border border-transparent">
+          <i data-lucide="bot" class="w-4 h-4"></i> Chat IA
+        </button>
+      </nav>
+
+      <!-- Seletor de Mês & Ações do Topo -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- Seletor de Mês Compacto Estilo Calendário -->
+        <div class="relative">
+          <div class="flex items-center bg-slate-800/90 rounded-xl border border-slate-700/70 p-0.5 shadow-sm">
+            <button id="btn-prev-month" onclick="app.navigateMonth(-1)" title="Mês Anterior" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/70 transition-colors">
+              <i data-lucide="chevron-left" class="w-4 h-4"></i>
+            </button>
+            <button id="btn-month-display" onclick="app.toggleMonthPicker()" title="Escolher Mês / Calendário" class="px-2.5 py-1 text-xs font-bold text-slate-100 hover:text-emerald-400 flex items-center gap-1.5 transition-colors">
+              <i data-lucide="calendar" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span id="current-month-label">Carregando...</span>
+            </button>
+            <button id="btn-next-month" onclick="app.navigateMonth(1)" title="Próximo Mês" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/70 transition-colors">
+              <i data-lucide="chevron-right" class="w-4 h-4"></i>
+            </button>
+          </div>
+
+          <!-- Popover Compacto em Grade de Meses / Calendário -->
+          <div id="month-picker-popover" class="hidden absolute top-full left-0 sm:left-1/2 sm:-translate-x-1/2 mt-2 w-64 p-3 rounded-2xl bg-slate-900/95 backdrop-blur-md border border-slate-700 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
+            <!-- Cabeçalho do Ano com Navegador -->
+            <div class="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-800 text-xs font-bold text-slate-200">
+              <button onclick="app.changePickerYear(-1)" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors" title="Ano Anterior">
+                <i data-lucide="chevron-left" class="w-4 h-4"></i>
+              </button>
+              <span id="picker-year-label" class="text-sm font-black text-white tracking-wide">2026</span>
+              <button onclick="app.changePickerYear(1)" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors" title="Próximo Ano">
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+              </button>
+            </div>
+
+            <!-- Grade Compacta de 12 Meses (Estilo Calendário) -->
+            <div id="picker-months-grid" class="grid grid-cols-3 gap-1.5 text-xs font-semibold">
+              <!-- Populado via JS -->
+            </div>
+
+            <!-- Ação Rápida de Rodapé -->
+            <div class="mt-2.5 pt-2 border-t border-slate-800 flex justify-between items-center text-[11px]">
+              <button onclick="app.goToCurrentMonth()" class="text-emerald-400 hover:text-emerald-300 font-bold hover:underline flex items-center gap-1">
+                <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Ms Atual
+              </button>
+              <button onclick="app.toggleMonthPicker(false)" class="text-slate-400 hover:text-slate-200 font-medium">
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Boto de Bloqueio Rpido (PIN) -->
+        <button id="btn-quick-lock" onclick="window.auth.lock()" title="Bloquear Sistema" class="hidden p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 border border-slate-700/60 transition-colors flex items-center gap-1.5 text-xs font-semibold">
+          <i data-lucide="lock" class="w-4 h-4 text-rose-400"></i>
+          <span class="hidden xl:inline">Bloquear</span>
+        </button>
+
+        <!-- Boto QR Code Mobile -->
+        <button onclick="app.openMobileQRModal()" title="Abrir no Celular via QR Code" class="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-colors flex items-center gap-1.5 text-xs font-semibold">
+          <i data-lucide="smartphone" class="w-4 h-4 text-emerald-400"></i>
+          <span class="hidden lg:inline">Conectar Celular</span>
+        </button>
+
+        <!-- Boto Notificaes e Lembretes Dirios -->
+        <button id="btn-header-notifications" onclick="window.notifications.promptPermissionOrOpenSettings()" title="Notificaes e Lembretes Dirios de Contas e Agenda" class="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-colors flex items-center gap-1.5 text-xs font-semibold relative">
+          <i data-lucide="bell" id="header-bell-icon" class="w-4 h-4 text-amber-400"></i>
+          <span class="hidden xl:inline">Lembretes</span>
+          <span id="header-bell-dot" class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-400 animate-pulse hidden"></span>
+        </button>
+
+        <!-- Boto Configuraes (Groq API, Backups, Senha) -->
+        <button onclick="app.openSettingsModal()" title="Configuraes, Senha e Groq API" class="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-colors flex items-center gap-1.5 text-xs font-semibold">
+          <i data-lucide="settings" class="w-4 h-4 text-slate-300"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTAINER PRINCIPAL DE TELAS (EXPANSIVO EM TELA CHEIA WIDESCREEN) -->
+  <main class="w-full max-w-[1720px] mx-auto px-3.5 sm:px-6 lg:px-8 pt-4 pb-24 md:pb-8">
+
+    <!-- ==================== TELA 1: DASHBOARD ==================== -->
+    <section id="view-dashboard" class="tab-view space-y-5">
+      
+      <!-- Cards de Métricas Principais (Widescreen 5 colunas no Desktop) -->
+      <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <!-- Saldo Atual -->
+        <div onclick="app.filterFromDashboard('balance')" class="col-span-2 sm:col-span-1 p-4 rounded-2xl glass-panel border border-slate-700/60 relative overflow-hidden flex flex-col justify-between cursor-pointer transition-transform hover:scale-[1.02]">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-1.5">
+            <span class="font-medium">Saldo Atual</span>
+            <div class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+              <i data-lucide="wallet" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <p id="dash-balance" class="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-white">R$ 0,00</p>
+          <span id="dash-balance-subtext" class="text-[11px] text-slate-400 mt-1 truncate">Saldo consolidado da conta</span>
+        </div>
+
+        <!-- Receitas Previstas -->
+        <div onclick="app.filterFromDashboard('income')" class="p-4 rounded-2xl glass-panel border border-slate-700/60 flex flex-col justify-between cursor-pointer transition-transform hover:scale-[1.02]">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-1.5">
+            <span class="font-medium">Entradas Previstas</span>
+            <div class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+              <i data-lucide="trending-up" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <p id="dash-income" class="text-lg sm:text-xl lg:text-2xl font-black text-emerald-400 tracking-tight">R$ 0,00</p>
+          <span id="dash-income-subtext" class="text-[11px] text-slate-400 mt-1 truncate">Total previsto do mês</span>
+        </div>
+
+        <!-- Despesas Previstas -->
+        <div onclick="app.filterFromDashboard('expense')" class="p-4 rounded-2xl glass-panel border border-slate-700/60 flex flex-col justify-between cursor-pointer transition-transform hover:scale-[1.02]">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-1.5">
+            <span class="font-medium">Saídas Previstas</span>
+            <div class="p-1.5 rounded-lg bg-rose-500/10 text-rose-400">
+              <i data-lucide="trending-down" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <p id="dash-expense" class="text-lg sm:text-xl lg:text-2xl font-black text-rose-400 tracking-tight">R$ 0,00</p>
+          <span id="dash-expense-subtext" class="text-[11px] text-slate-400 mt-1 truncate">Total previsto do mês</span>
+        </div>
+
+        <!-- Saldo Previsto -->
+        <div onclick="app.filterFromDashboard('projected')" class="p-4 rounded-2xl glass-panel border border-slate-700/60 flex flex-col justify-between cursor-pointer transition-transform hover:scale-[1.02]">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-1.5">
+            <span class="font-medium">Saldo Previsto</span>
+            <div class="p-1.5 rounded-lg bg-blue-500/10 text-blue-400">
+              <i data-lucide="clock" class="w-4 h-4"></i>
+            </div>
+          </div>
+          <p id="dash-projected" class="text-lg sm:text-xl lg:text-2xl font-black text-blue-400 tracking-tight">R$ 0,00</p>
+          <span class="text-[11px] text-slate-400 mt-1">Considerando pendências</span>
+        </div>
+
+        <!-- Atalho Rápido Lan�ar -->
+        <div class="col-span-2 sm:col-span-2 md:col-span-3 lg:col-span-1 p-3 rounded-2xl glass-panel border border-slate-700/60 flex flex-col justify-center gap-2">
+          <button onclick="app.openTransactionModal('expense')" class="w-full py-2 px-3 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center justify-center gap-2 transition-colors">
+            <i data-lucide="minus-circle" class="w-4 h-4"></i> Nova Despesa
+          </button>
+          <button onclick="app.openTransactionModal('income')" class="w-full py-2 px-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center justify-center gap-2 transition-colors">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i> Nova Receita
+          </button>
+          <button onclick="window.pluggyService.openWidget()" class="w-full py-2 px-3 rounded-xl bg-violet-500/15 hover:bg-violet-500/25 border border-violet-500/30 text-violet-300 text-xs font-bold flex items-center justify-center gap-2 transition-colors" title="Conectar Banco via Open Finance (Pluggy)">
+            <i data-lucide="landmark" class="w-4 h-4 text-violet-400"></i> Conectar Banco (Pluggy)
+          </button>
+        </div>
+      </div>
+
+      <!-- Alerta Proativo de Contas Vencidas em Aberto de Meses Anteriores -->
+      <div id="dash-overdue-alert" class="hidden p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex flex-col md:flex-row md:items-center justify-between gap-3 animate-in fade-in">
+        <div class="flex items-start sm:items-center gap-3">
+          <div id="dash-overdue-icon-box" class="p-2.5 rounded-xl bg-rose-500/20 text-rose-400 shrink-0">
+            <i id="dash-overdue-icon" data-lucide="alert-octagon" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h4 id="dash-overdue-title" class="text-xs sm:text-sm font-bold text-rose-300 flex items-center gap-1.5">
+              Atenção: Contas Vencidas de Meses Anteriores em Aberto!
+            </h4>
+            <p id="dash-overdue-text" class="text-xs text-rose-200/80 mt-0.5">
+              Você possui contas que venceram em meses passados e ainda não foram pagas. Elas já estão somadas nas suas Saídas Previstas e deduzidas do Saldo Previsto.
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2.5 shrink-0 self-start md:self-auto">
+          <!-- Chavinha Liga/Desliga para Somar Vencidas no Mês -->
+          <label class="flex items-center gap-2 cursor-pointer select-none px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700/80 text-xs text-slate-300 transition-colors shadow-sm" title="Ativar ou desativar a soma de contas vencidas de meses anteriores nas contas do mês atual">
+            <span id="dash-overdue-toggle-label" class="text-[11px] font-semibold text-emerald-400">Somar no mês: ATIVO</span>
+            <input type="checkbox" id="dash-overdue-toggle" onchange="app.toggleIncludeOverdue(this.checked)" class="sr-only peer" checked>
+            <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 relative"></div>
+          </label>
+
+          <button onclick="app.switchTab('finances'); document.getElementById('finance-filter-status').value = 'pending'; app.renderFinances();" class="px-3.5 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs shrink-0 flex items-center justify-center gap-1.5 transition-colors shadow-sm shadow-rose-500/20">
+            <i data-lucide="receipt" class="w-3.5 h-3.5"></i> <span class="hidden sm:inline">Ver Contas e</span> Dar Baixa
+          </button>
+        </div>
+      </div>
+
+      <!-- Radar Semanal de Caixa & Previsão de Sobra / Falta (Ideal para quem recebe por semana) -->
+      <div id="dash-weekly-radar" class="p-5 rounded-2xl glass-panel border border-slate-700/60 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-700/50 pb-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <div class="p-1.5 rounded-lg bg-sky-500/10 text-sky-400">
+                <i data-lucide="compass" class="w-4 h-4"></i>
+              </div>
+              <h3 class="text-sm font-bold text-white">Radar Semanal de Caixa & Previsão de Sobra / Falta</h3>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">Controle semanal antecipado: saiba se vai sobrar ou faltar dinheiro com antecedência para guardar o valor certo</p>
+          </div>
+          <div id="radar-status-badge" class="self-start sm:self-auto">
+            <!-- Badge din�mico de status -->
+          </div>
+        </div>
+
+        <!-- Grade Comparativa: Esta Semana vs Semana que Vem -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          <!-- Card: Esta Semana -->
+          <div class="p-4 rounded-xl bg-slate-800/60 border border-slate-700/40 flex flex-col justify-between">
+            <div class="flex items-center justify-between text-xs mb-2">
+              <span class="font-bold text-slate-200 flex items-center gap-1.5">
+                <i data-lucide="calendar" class="w-3.5 h-3.5 text-emerald-400"></i> Esta Semana
+              </span>
+              <span id="radar-this-week-label" class="text-slate-400 text-[11px] font-medium">Carregando...</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 py-2.5 border-y border-slate-700/30 text-center">
+              <div>
+                <span class="text-[10px] text-slate-400 block">Entradas</span>
+                <span id="radar-this-income" class="text-xs sm:text-sm font-bold text-emerald-400">R$ 0,00</span>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-400 block">Saídas</span>
+                <span id="radar-this-expense" class="text-xs sm:text-sm font-bold text-rose-400">R$ 0,00</span>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-400 block">Balan�o</span>
+                <span id="radar-this-net" class="text-xs sm:text-sm font-bold text-white">R$ 0,00</span>
+              </div>
+            </div>
+            <div class="mt-2 flex items-center justify-between">
+              <span class="text-[10px] text-slate-400">Fluxo da semana:</span>
+              <span id="radar-this-status" class="text-xs font-semibold text-emerald-400">Sobra: R$ 0,00</span>
+            </div>
+          </div>
+
+          <!-- Card: Pr�xima Semana -->
+          <div class="p-4 rounded-xl bg-slate-800/60 border border-slate-700/40 flex flex-col justify-between">
+            <div class="flex items-center justify-between text-xs mb-2">
+              <span class="font-bold text-slate-200 flex items-center gap-1.5">
+                <i data-lucide="calendar-plus" class="w-3.5 h-3.5 text-blue-400"></i> Pr�xima Semana
+              </span>
+              <span id="radar-next-week-label" class="text-slate-400 text-[11px] font-medium">Carregando...</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 py-2.5 border-y border-slate-700/30 text-center">
+              <div>
+                <span class="text-[10px] text-slate-400 block">Entradas Previstas</span>
+                <span id="radar-next-income" class="text-xs sm:text-sm font-bold text-emerald-400">R$ 0,00</span>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-400 block">Contas Previstas</span>
+                <span id="radar-next-expense" class="text-xs sm:text-sm font-bold text-rose-400">R$ 0,00</span>
+              </div>
+              <div>
+                <span class="text-[10px] text-slate-400 block">Balan�o</span>
+                <span id="radar-next-net" class="text-xs sm:text-sm font-bold text-white">R$ 0,00</span>
+              </div>
+            </div>
+            <div class="mt-2 flex items-center justify-between">
+              <span class="text-[10px] text-slate-400">Previsão:</span>
+              <span id="radar-next-status" class="text-xs font-semibold text-slate-300">Equilibrado</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alerta de Orientação Inteligente (O que fazer com a sobra/falta) -->
+        <div id="radar-advice-box" class="p-3.5 rounded-xl border flex items-start gap-3 text-xs">
+          <!-- Populado via JS -->
+        </div>
+      </div>
+
+      <!-- Gráficos de Fluxo e Categorias (Widescreen) -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+        <!-- Gráfico de Fluxo de Caixa Mensal -->
+        <div class="p-5 rounded-2xl glass-panel border border-slate-700/60">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+              <i data-lucide="bar-chart-3" class="w-4 h-4 text-emerald-400"></i> Fluxo de Caixa (Últimos 6 Meses)
+            </h3>
+          </div>
+          <div class="h-64 sm:h-72 lg:h-80 w-full">
+            <canvas id="flow-chart"></canvas>
+          </div>
+        </div>
+
+        <!-- Gráfico de Despesas por Categoria -->
+        <div class="p-5 rounded-2xl glass-panel border border-slate-700/60">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+              <i data-lucide="pie-chart" class="w-4 h-4 text-emerald-400"></i> Despesas por Categoria
+            </h3>
+          </div>
+          <div class="h-64 sm:h-72 lg:h-80 w-full">
+            <canvas id="category-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- seção Inferior da Dashboard: Compromissos e Últimos Lançamentos -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+        <!-- Compromissos Imediatos -->
+        <div class="p-5 rounded-2xl glass-panel border border-slate-700/60">
+          <div class="flex items-center justify-between mb-3.5">
+            <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+              <i data-lucide="calendar" class="w-4 h-4 text-blue-400"></i> Compromissos Próximos
+            </h3>
+            <button onclick="app.switchTab('agenda')" class="text-xs text-emerald-400 hover:underline font-semibold">Ver agenda completa ?</button>
+          </div>
+          <div id="dash-appointments-list" class="space-y-2.5">
+            <!-- Populado via JS -->
+          </div>
+        </div>
+
+        <!-- Lançamentos Recentes -->
+        <div class="p-5 rounded-2xl glass-panel border border-slate-700/60">
+          <div class="flex items-center justify-between mb-3.5">
+            <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+              <i data-lucide="clock" class="w-4 h-4 text-purple-400"></i> Últimas Transações
+            </h3>
+            <button onclick="app.switchTab('finances')" class="text-xs text-emerald-400 hover:underline font-semibold">Ver extrato completo ?</button>
+          </div>
+          <div id="dash-recent-transactions" class="space-y-2.5">
+            <!-- Populado via JS -->
+          </div>
+        </div>
+    </section>
+
+    <!-- ==================== TELA 2: FINANÇAS ==================== -->
+    <section id="view-finances" class="tab-view hidden space-y-3.5">
+      <!-- Indicadores das Realizadas (Efetivadas no Mês) -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <!-- Entradas Realizadas -->
+        <div class="p-3.5 rounded-2xl glass-panel border border-slate-700/60 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span class="font-medium text-slate-300">Entradas Realizadas</span>
+            <div class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+              <i data-lucide="arrow-down-left" class="w-3.5 h-3.5"></i>
+            </div>
+          </div>
+          <p id="fin-income-realized" class="text-base sm:text-lg lg:text-xl font-black text-emerald-400 tracking-tight">R$ 0,00</p>
+          <span id="fin-income-realized-sub" class="text-[11px] text-slate-400 mt-0.5">0 recebidas</span>
+        </div>
+
+        <!-- Saídas Realizadas -->
+        <div class="p-3.5 rounded-2xl glass-panel border border-slate-700/60 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span class="font-medium text-slate-300">Saídas Realizadas</span>
+            <div class="p-1.5 rounded-lg bg-rose-500/10 text-rose-400">
+              <i data-lucide="arrow-up-right" class="w-3.5 h-3.5"></i>
+            </div>
+          </div>
+          <p id="fin-expense-realized" class="text-base sm:text-lg lg:text-xl font-black text-rose-400 tracking-tight">R$ 0,00</p>
+          <span id="fin-expense-realized-sub" class="text-[11px] text-slate-400 mt-0.5">0 pagas</span>
+        </div>
+
+        <!-- Resultado Realizado -->
+        <div class="p-3.5 rounded-2xl glass-panel border border-slate-700/60 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span class="font-medium text-slate-300">Resultado do Mês</span>
+            <div class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
+              <i data-lucide="scale" class="w-3.5 h-3.5"></i>
+            </div>
+          </div>
+          <p id="fin-net-realized" class="text-base sm:text-lg lg:text-xl font-black text-white tracking-tight">R$ 0,00</p>
+          <span id="fin-net-realized-sub" class="text-[11px] text-slate-400 mt-0.5">Recebido - Pago</span>
+        </div>
+
+        <!-- Saldo Consolidado em Conta -->
+        <div class="p-3.5 rounded-2xl glass-panel border border-slate-700/60 flex flex-col justify-between">
+          <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span class="font-medium text-slate-300">Saldo em Conta</span>
+            <div class="p-1.5 rounded-lg bg-blue-500/10 text-blue-400">
+              <i data-lucide="wallet" class="w-3.5 h-3.5"></i>
+            </div>
+          </div>
+          <p id="fin-balance-realized" class="text-base sm:text-lg lg:text-xl font-black text-white tracking-tight">R$ 0,00</p>
+          <span id="fin-balance-realized-sub" class="text-[11px] text-slate-400 mt-0.5 truncate">Saldo real da conta</span>
+        </div>
+      </div>
+
+      <!-- Barra Superior de Filtros e Busca -->
+      <div class="p-3.5 rounded-2xl glass-panel border border-slate-700/60 space-y-2.5">
+        <div class="flex flex-col sm:flex-row gap-2">
+          <!-- Campo de Busca -->
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-3"></i>
+            <input type="text" id="finance-search" placeholder="Buscar por descrição ou categoria..." class="w-full bg-slate-800/90 text-xs text-slate-100 pl-9 pr-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500" />
+          </div>
+
+          <!-- Filtros de Tipo e Status -->
+          <div class="flex items-center gap-2">
+            <select id="finance-filter-type" class="bg-slate-800/90 text-xs text-slate-300 px-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500">
+              <option value="all">Todos os tipos</option>
+              <option value="expense">Apenas Despesas</option>
+              <option value="income">Apenas Receitas</option>
+            </select>
+
+            <select id="finance-filter-status" class="bg-slate-800/90 text-xs text-slate-300 px-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500">
+              <option value="all">Todos os status</option>
+              <option value="paid">Pagas / Recebidas</option>
+              <option value="pending">Pendentes</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Bot�es de Ação e Contador -->
+        <div class="flex items-center justify-between pt-1 text-xs">
+          <span id="finances-count" class="text-slate-400 font-medium">0 lançamentos</span>
+          <div class="flex items-center flex-wrap gap-2">
+            <label class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 font-medium transition-colors cursor-pointer" title="Importar arquivo de extrato bancário (.OFX ou .CSV de qualquer banco)">
+              <i data-lucide="file-up" class="w-3.5 h-3.5 text-blue-400"></i>
+              <span class="hidden sm:inline">Importar Extrato</span>
+              <span class="sm:hidden">Importar</span>
+              <input type="file" id="bank-file-input" accept=".ofx,.csv" class="hidden" onchange="window.bankImport.handleFileSelect(this)" />
+            </label>
+            <button id="btn-pluggy-connect" onclick="window.pluggyService.openWidget()" class="px-2.5 py-1.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 border border-violet-500/30 flex items-center gap-1.5 font-medium transition-colors" title="Conectar Conta Bancária via Open Finance (Pluggy)">
+              <i data-lucide="landmark" class="w-3.5 h-3.5 text-violet-400"></i>
+              <span class="hidden sm:inline">Conectar Banco (Pluggy)</span>
+              <span class="sm:hidden">Pluggy</span>
+            </button>
+            <button onclick="window.exporter.exportTransactionsToCSV()" class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 font-medium transition-colors" title="Exportar para Excel / Planilha">
+              <i data-lucide="sheet" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span class="hidden sm:inline">Exportar CSV</span>
+              <span class="sm:hidden">Exportar</span>
+            </button>
+            <button onclick="app.openTransactionModal('expense')" class="px-3 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold flex items-center gap-1 shadow-sm shadow-rose-500/20">
+              <i data-lucide="minus" class="w-3.5 h-3.5"></i> Despesa
+            </button>
+            <button onclick="app.openTransactionModal('income')" class="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold flex items-center gap-1 shadow-sm shadow-emerald-500/20">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i> Receita
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lista de Lançamentos em Lista Vertical (Ordem de Vencimento) -->
+      <div id="custom-filter-badge" class="hidden px-4 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs font-semibold flex items-center gap-2"></div>
+      <div id="finances-list" class="flex flex-col gap-2.5 w-full mt-2">
+        <!-- Itens inseridos dinamicamente -->
+      </div>
+    </section>
+
+    <!-- ==================== TELA 3: AGENDA ==================== -->
+    <section id="view-agenda" class="tab-view hidden space-y-4">
+      <!-- Barra Superior da Agenda -->
+      <div class="p-4 rounded-2xl glass-panel border border-slate-700/60 flex items-center justify-between">
+        <div>
+          <h2 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="calendar-check" class="w-4 h-4 text-emerald-400"></i> Agenda & Compromissos
+          </h2>
+          <p class="text-xs text-slate-400">Acompanhe compromissos e planeje custos associados</p>
+        </div>
+        <button onclick="app.openAppointmentModal()" class="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20">
+          <i data-lucide="plus" class="w-4 h-4"></i> Novo Compromisso
+        </button>
+      </div>
+
+      <!-- Container de Compromissos Agrupados -->
+      <div id="agenda-container" class="space-y-4">
+        <!-- Itens inseridos dinamicamente -->
+      </div>
+    </section>
+
+    <!-- ==================== TELA 4: ANOTAÇÕES ==================== -->
+    <section id="view-notes" class="tab-view hidden space-y-4">
+      <!-- Barra Superior de Anotações -->
+      <div class="p-4 rounded-2xl glass-panel border border-slate-700/60 space-y-3">
+        <div class="flex items-center justify-between gap-3">
+          <div class="relative flex-1">
+            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3"></i>
+            <input type="text" id="notes-search" placeholder="Buscar anotações por título ou conte�do..." class="w-full bg-slate-800/90 text-xs text-slate-100 pl-10 pr-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500" />
+          </div>
+          <button onclick="app.openNoteModal()" class="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20 shrink-0">
+            <i data-lucide="plus" class="w-4 h-4"></i> Nova Nota
+          </button>
+        </div>
+
+        <!-- Tags Horizontais com Scroll Suave -->
+        <div id="notes-tags-bar" class="flex items-center gap-2 overflow-x-auto pb-1">
+          <!-- Tags dinâmicas -->
+        </div>
+      </div>
+
+      <!-- Grade de Cards de Anotações (Widescreen até 5 colunas no PC) -->
+      <div id="notes-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3.5">
+        <!-- Notas dinâmicas -->
+      </div>
+    </section>
+
+    <!-- ==================== TELA 5: CHAT IA & VOZ ==================== -->
+    <section id="view-chat" class="tab-view hidden space-y-3.5 max-w-5xl mx-auto">
+      <!-- Cabeçalho do Chat -->
+      <div class="p-3 rounded-2xl glass-panel border border-slate-700/60 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <i data-lucide="sparkles" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="text-xs font-bold text-white">Assistente Conversacional</h3>
+            <div id="chat-engine-badge" class="flex items-center gap-1 text-[10px] text-slate-400">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> NLP Local Inteligente
+            </div>
+          </div>
+        </div>
+
+        <button onclick="window.db.clearChat()" title="Limpar conversa" class="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-red-400 hover:bg-slate-700 text-xs">
+          <i data-lucide="trash" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Janela de Mensagens com Scroll -->
+      <div id="chat-messages" class="h-[calc(100vh-270px)] min-h-[360px] overflow-y-auto p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-3">
+        <!-- Mensagens inseridas via JS -->
+      </div>
+
+      <!-- Barra de Envio e Microfone -->
+      <div class="flex items-center gap-2 p-2 rounded-2xl glass-panel border border-slate-700/70">
+        <!-- botão de Microfone / Gravação de Voz -->
+        <button id="btn-chat-mic" onclick="window.chatNLP.toggleVoiceRecording()" title="Falar por voz" class="p-2.5 rounded-xl bg-slate-800 text-slate-400 hover:text-emerald-400 transition-all shrink-0">
+          <i data-lucide="mic" class="w-5 h-5"></i>
+        </button>
+
+        <!-- Campo de Texto -->
+        <input type="text" id="chat-input" placeholder="Digite ou fale: 'Gastei 50 no almoço'..." class="flex-1 bg-transparent text-xs sm:text-sm text-slate-100 placeholder-slate-500 px-2 py-2 focus:outline-none" />
+
+        <!-- botão de Enviar -->
+        <button onclick="app.sendChatMessage()" class="p-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white transition-colors shrink-0 shadow-md shadow-emerald-500/20">
+          <i data-lucide="send" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== MENU RÁPIDO FLUTUANTE (FAB) ==================== -->
+  <div class="fixed right-4 bottom-20 md:bottom-6 md:right-6 z-40">
+    <!-- Menu Popover -->
+    <div id="quick-fab-menu" class="hidden flex flex-col gap-2 mb-3 items-end">
+      <button onclick="app.openTransactionModal('expense'); app.closeQuickMenu();" class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold shadow-lg hover:bg-rose-500 transition-transform active:scale-95">
+        <span>Nova Despesa</span>
+        <i data-lucide="minus-circle" class="w-4 h-4"></i>
+      </button>
+      <button onclick="app.openTransactionModal('income'); app.closeQuickMenu();" class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold shadow-lg hover:bg-emerald-500 transition-transform active:scale-95">
+        <span>Nova Receita</span>
+        <i data-lucide="plus-circle" class="w-4 h-4"></i>
+      </button>
+      <button onclick="app.openAppointmentModal(); app.closeQuickMenu();" class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-lg hover:bg-blue-500 transition-transform active:scale-95">
+        <span>Compromisso</span>
+        <i data-lucide="calendar-plus" class="w-4 h-4"></i>
+      </button>
+      <button onclick="app.openNoteModal(); app.closeQuickMenu();" class="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-purple-600 text-white text-xs font-bold shadow-lg hover:bg-purple-500 transition-transform active:scale-95">
+        <span>Anotação</span>
+        <i data-lucide="file-plus" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- botão Principal (+) -->
+    <button onclick="app.toggleQuickMenu()" class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-slate-950 font-black flex items-center justify-center shadow-xl shadow-emerald-500/30 hover:scale-105 active:scale-95 transition-all">
+      <i data-lucide="plus" class="w-6 h-6"></i>
+    </button>
+  </div>
+
+  <!-- ==================== NAVEGAÇÃO INFERIOR MOBILE (VISÍVEL APENAS NO CELULAR) ==================== -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-30 glass-nav px-2 py-2 safe-bottom-padding">
+    <div class="max-w-md mx-auto flex items-center justify-around">
+      <!-- Tab Início -->
+      <button onclick="app.switchTab('dashboard')" data-tab="dashboard" class="nav-item active flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-400 py-1 px-2.5 rounded-xl transition-all">
+        <i data-lucide="layout-dashboard" class="nav-icon w-5 h-5"></i>
+        <span class="text-[10px] font-semibold">Início</span>
+      </button>
+
+      <!-- Tab Finanças -->
+      <button onclick="app.switchTab('finances')" data-tab="finances" class="nav-item flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-400 py-1 px-2.5 rounded-xl transition-all">
+        <i data-lucide="receipt" class="nav-icon w-5 h-5"></i>
+        <span class="text-[10px] font-semibold">Finanças</span>
+      </button>
+
+      <!-- Tab Agenda -->
+      <button onclick="app.switchTab('agenda')" data-tab="agenda" class="nav-item relative flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-400 py-1 px-2.5 rounded-xl transition-all">
+        <i data-lucide="calendar" class="nav-icon w-5 h-5"></i>
+        <span class="text-[10px] font-semibold">Agenda</span>
+        <span id="badge-agenda-today" class="hidden absolute top-0 right-1 w-4 h-4 rounded-full bg-emerald-500 text-slate-950 text-[9px] font-black flex items-center justify-center">1</span>
+      </button>
+
+      <!-- Tab Anotações -->
+      <button onclick="app.switchTab('notes')" data-tab="notes" class="nav-item flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-400 py-1 px-2.5 rounded-xl transition-all">
+        <i data-lucide="sticky-note" class="nav-icon w-5 h-5"></i>
+        <span class="text-[10px] font-semibold">Notas</span>
+      </button>
+
+      <!-- Tab Chat IA -->
+      <button onclick="app.switchTab('chat')" data-tab="chat" class="nav-item flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-400 py-1 px-2.5 rounded-xl transition-all">
+        <i data-lucide="bot" class="nav-icon w-5 h-5"></i>
+        <span class="text-[10px] font-semibold">Chat IA</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ==================== MODAL 1: LANÇAMENTO MANUAL ==================== -->
+  <div id="modal-transaction" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 hidden">
+    <div class="modal-sheet w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="font-bold text-sm text-white flex items-center gap-2">
+          <i data-lucide="plus-circle" class="w-4 h-4 text-emerald-400"></i> Lançamento Financeiro
+        </h3>
+        <button onclick="app.closeTransactionModal()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="tx-form" class="mt-4 space-y-3.5">
+        <input type="hidden" id="tx-type" value="expense" />
+
+        <!-- Seletor Despesa / Receita -->
+        <div class="flex items-center gap-2 p-1 bg-slate-800/80 rounded-2xl border border-slate-700/50">
+          <button type="button" id="btn-type-expense" onclick="app.updateTransactionTypeUI('expense'); document.getElementById('tx-type').value = 'expense';" class="flex-1 py-2 rounded-xl text-xs font-bold bg-rose-500 text-white shadow-md shadow-rose-500/20">
+            Despesa
+          </button>
+          <button type="button" id="btn-type-income" onclick="app.updateTransactionTypeUI('income'); document.getElementById('tx-type').value = 'income';" class="flex-1 py-2 rounded-xl text-xs font-bold bg-slate-800 text-slate-400 hover:text-slate-200">
+            Receita
+          </button>
+        </div>
+
+        <!-- Descrição -->
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1">Descrição</label>
+          <input type="text" id="tx-desc" required placeholder="Ex: Supermercado, Salário, Uber..." class="w-full bg-slate-800 text-xs text-white px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500" />
+        </div>
+
+        <!-- Valor em R$ -->
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1">Valor (R$)</label>
+          <input type="number" id="tx-amount" step="0.01" min="0.01" required placeholder="0,00" class="w-full bg-slate-800 text-sm font-bold text-white px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500" />
+        </div>
+
+        <!-- Categoria e Forma de Pagamento -->
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Categoria</label>
+            <select id="tx-category" class="w-full bg-slate-800 text-xs text-slate-200 px-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500">
+              <!-- Categorias -->
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Pagamento</label>
+            <select id="tx-payment" class="w-full bg-slate-800 text-xs text-slate-200 px-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500">
+              <option value="PIX">PIX</option>
+              <option value="Cartão de Crédito">Cartão de Crédito</option>
+              <option value="Cartão de Débito">Cartão de Débito</option>
+              <option value="Dinheiro">Dinheiro</option>
+              <option value="Boleto">Boleto</option>
+              <option value="Transferência">Transferência / TED</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Data e Status -->
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Data</label>
+            <input type="date" id="tx-date" class="w-full bg-slate-800 text-xs text-slate-200 px-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Status</label>
+            <select id="tx-status" class="w-full bg-slate-800 text-xs text-slate-200 px-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500">
+              <option value="paid">Efetivado / Pago</option>
+              <option value="pending">Pendente (Previsão)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Parcelas -->
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1">Parcelamento</label>
+          <select id="tx-installments" class="w-full bg-slate-800 text-xs text-slate-200 px-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500">
+            <option value="1">� vista (1x)</option>
+            <option value="2">2x parcelas mensais</option>
+            <option value="3">3x parcelas mensais</option>
+            <option value="4">4x parcelas mensais</option>
+            <option value="5">5x parcelas mensais</option>
+            <option value="6">6x parcelas mensais</option>
+            <option value="10">10x parcelas mensais</option>
+            <option value="12">12x parcelas mensais</option>
+          </select>
+        </div>
+
+        <!-- Observações -->
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1">Observações (opcional)</label>
+          <input type="text" id="tx-notes" placeholder="Detalhes adicionais..." class="w-full bg-slate-800 text-xs text-white px-3.5 py-2 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500" />
+        </div>
+
+        <!-- Bot�es -->
+        <div class="pt-2 flex items-center gap-2">
+          <button type="submit" class="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-md shadow-emerald-500/20">
+            Salvar Lançamento
+          </button>
+          <button type="button" onclick="app.closeTransactionModal()" class="py-2.5 px-4 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: LIQUIDAÇÃO / BAIXA TOTAL OU PARCIAL ==================== -->
+  <div id="modal-settle-transaction" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 hidden">
+    <div class="modal-sheet w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="font-bold text-sm text-white flex items-center gap-2">
+          <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i> <span id="settle-modal-title">Dar Baixa no Lançamento</span>
+        </h3>
+        <button onclick="app.closeSettleModal()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="settle-form" onsubmit="app.handleSettleSubmit(event)" class="mt-4 space-y-3.5">
+        <input type="hidden" id="settle-tx-id" />
+
+        <!-- Card de Resumo do Lançamento -->
+        <div class="p-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 space-y-1.5 text-xs">
+          <div class="flex items-center justify-between">
+            <span id="settle-tx-type" class="font-semibold text-slate-300">Despesa</span>
+            <span id="settle-tx-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300">? Pendente</span>
+          </div>
+          <p class="font-bold text-white text-sm" id="settle-tx-desc">Conta</p>
+          <div class="flex items-center justify-between pt-1 border-t border-slate-700/40 text-[11px] text-slate-400">
+            <span>Valor em Aberto:</span>
+            <span class="font-bold text-sm text-white" id="settle-tx-current-amount">R$ 0,00</span>
+          </div>
+          <div id="settle-tx-history-box" class="hidden text-[11px] text-slate-400 pt-1 border-t border-slate-700/40">
+            <span id="settle-tx-history-text">JÁ pago: R$ 0,00 de R$ 0,00</span>
+          </div>
+        </div>
+
+        <!-- Seletor de Tipo de Baixa -->
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1.5">Quanto deseja baixar agora?</label>
+          <div class="grid grid-cols-2 gap-2 mb-2">
+            <button type="button" id="btn-settle-full" onclick="app.setSettleType('full')" class="py-2 px-3 rounded-xl text-xs font-bold border transition-all bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
+              Quitar Total Integral
+            </button>
+            <button type="button" id="btn-settle-partial" onclick="app.setSettleType('partial')" class="py-2 px-3 rounded-xl text-xs font-bold border transition-all bg-slate-800 text-slate-400 border-slate-700 hover:text-white">
+              Baixa Parcial
+            </button>
+          </div>
+          <div class="relative">
+            <span class="absolute left-3.5 top-2.5 text-xs font-bold text-slate-400">R$</span>
+            <input type="number" step="0.01" min="0.01" id="settle-amount" required oninput="app.updateSettlePreview()" class="w-full bg-slate-800 text-sm font-bold text-emerald-400 pl-10 pr-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500" />
+          </div>
+        </div>
+
+        <!-- Prévia do Resultado em Tempo Real -->
+        <div id="settle-preview-box" class="p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40 text-xs">
+          <p id="settle-preview-text" class="text-slate-300 font-medium">
+            ? Quitação total do saldo.
+          </p>
+        </div>
+
+        <!-- Data do Pagamento/Recebimento -->
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Data da Efetivação</label>
+            <input type="date" id="settle-date" required class="w-full bg-slate-800 text-xs text-slate-200 px-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Forma de Pagamento</label>
+            <select id="settle-payment-method" class="w-full bg-slate-800 text-xs text-slate-200 px-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500">
+              <option value="PIX">PIX</option>
+              <option value="Dinheiro">Dinheiro</option>
+              <option value="Cartão de Débito">Cartão de Débito</option>
+              <option value="Cartão de Crédito">Cartão de Crédito</option>
+              <option value="Transferência">Transferência / TED</option>
+              <option value="Boleto">Boleto</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Bot�es -->
+        <div class="pt-2 flex items-center gap-2">
+          <button type="submit" id="btn-confirm-settle" class="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1.5">
+            <i data-lucide="check" class="w-4 h-4"></i> Confirmar Baixa
+          </button>
+          <button type="button" onclick="app.closeSettleModal()" class="py-2.5 px-4 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 2: NOVO COMPROMISSO ==================== -->
+  <div id="modal-appointment" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 hidden">
+    <div class="modal-sheet w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="font-bold text-sm text-white flex items-center gap-2">
+          <i data-lucide="calendar-plus" class="w-4 h-4 text-emerald-400"></i> Novo Compromisso
+        </h3>
+        <button onclick="app.closeAppointmentModal()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="app-form" class="mt-4 space-y-3.5">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1">Título do Compromisso</label>
+          <input type="text" id="app-title" required placeholder="Ex: Consulta Dentista, Reunião com Cliente..." class="w-full bg-slate-800 text-xs text-white px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Data</label>
+            <input type="date" id="app-date" required class="w-full bg-slate-800 text-xs text-slate-200 px-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Horário</label>
+            <input type="time" id="app-time" required class="w-full bg-slate-800 text-xs text-slate-200 px-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Custo Estimado (R$)</label>
+            <input type="number" id="app-cost" step="0.01" min="0" placeholder="0,00" class="w-full bg-slate-800 text-xs text-white px-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Prioridade</label>
+            <select id="app-priority" class="w-full bg-slate-800 text-xs text-slate-200 px-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500">
+              <option value="low">Baixa</option>
+              <option value="medium" selected>Média</option>
+              <option value="high">Alta</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1">Local ou Link</label>
+          <input type="text" id="app-location" placeholder="Ex: Clínica Vida Bem, Google Meet..." class="w-full bg-slate-800 text-xs text-white px-3.5 py-2 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500" />
+        </div>
+
+        <div class="pt-2 flex items-center gap-2">
+          <button type="submit" class="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-md shadow-emerald-500/20">
+            Salvar Compromisso
+          </button>
+          <button type="button" onclick="app.closeAppointmentModal()" class="py-2.5 px-4 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 3: NOVA ANOTAÇÃO ==================== -->
+  <div id="modal-note" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 hidden">
+    <div class="modal-sheet w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="font-bold text-sm text-white flex items-center gap-2">
+          <i data-lucide="file-plus" class="w-4 h-4 text-emerald-400"></i> Nova Anotação
+        </h3>
+        <button onclick="app.closeNoteModal()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="note-form" class="mt-4 space-y-3.5">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1">Título</label>
+          <input type="text" id="note-title" required placeholder="Título da nota..." class="w-full bg-slate-800 text-xs text-white px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500" />
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1">Conte�do</label>
+          <textarea id="note-content" rows="4" placeholder="Escreva os detalhes, ideias ou lista..." class="w-full bg-slate-800 text-xs text-white px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500"></textarea>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Etiqueta / Tag</label>
+            <input type="text" id="note-tag" placeholder="Ex: Finanças, Ideias..." class="w-full bg-slate-800 text-xs text-white px-3 py-2 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Cor de Destaque</label>
+            <select id="note-color" class="w-full bg-slate-800 text-xs text-slate-200 px-3 py-2 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500">
+              <option value="#3b82f6">Azul</option>
+              <option value="#10b981">Verde Esmeralda</option>
+              <option value="#8b5cf6">Roxo</option>
+              <option value="#f59e0b">�mbar / Amarelo</option>
+              <option value="#ec4899">Rosa</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="pt-2 flex items-center gap-2">
+          <button type="submit" class="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-md shadow-emerald-500/20">
+            Salvar Anotação
+          </button>
+          <button type="button" onclick="app.closeNoteModal()" class="py-2.5 px-4 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs">
+            Cancelar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 4: CONFIGURAÇÕES & GROQ API ==================== -->
+  <div id="modal-settings" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 hidden">
+    <div class="modal-sheet w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto space-y-5">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+            <i data-lucide="settings" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-sm text-white">Configurações do Sistema</h3>
+            <p class="text-[11px] text-slate-400">Inteligência Artificial Groq e Gestão de Dados</p>
+          </div>
+        </div>
+        <button onclick="app.closeSettingsModal()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+        <!-- Banco Principal (Mercado Pago via Pluggy) -->
+      <div class="p-4 rounded-2xl bg-sky-900/20 border border-sky-500/30 space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-lg bg-sky-500/20 flex items-center justify-center border border-sky-500/30">
+              <i data-lucide="landmark" class="w-4 h-4 text-sky-400"></i>
+            </div>
+            <div>
+              <h4 class="text-xs font-bold text-white">Banco Principal</h4>
+              <p class="text-[10px] text-sky-400">Mercado Pago (via Pluggy)</p>
+            </div>
+          </div>
+          <span class="text-[11px] font-semibold px-2 py-0.5 rounded-lg bg-sky-500/20 text-sky-300 flex items-center gap-1">
+            <i data-lucide="check-circle-2" class="w-3 h-3"></i> Conectado 100%
+          </span>
+        </div>
+        
+        <div class="pt-2 border-t border-sky-500/20">
+          <p class="text-xs text-slate-300 leading-relaxed">
+            Sua conta do <strong>Mercado Pago</strong> está vinculada ao sistema Open Finance via Pluggy. Todos os seus lançamentos e saldo serão sincronizados automaticamente e importados para o seu dashboard!
+          </p>
+        </div>
+      </div>
+
+      <!-- Configuração da Groq API -->
+      <div class="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-3">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-emerald-400">? API do Groq (IA Generativa Ultra-Rápida)</span>
+          </div>
+          <span id="groq-status-badge" class="text-[11px] font-semibold px-2 py-0.5 rounded-lg bg-slate-700 text-slate-300">
+            Não configurada
+          </span>
+        </div>
+        
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Cole sua chave da API do <strong>Groq</strong> (<a href="https://console.groq.com/keys" target="_blank" class="text-emerald-400 underline font-medium">obter chave gratuita aqui</a>). O sistema usar� os modelos de IA ultra-r�pidos do Groq para entender qualquer áudio ou texto de despesas, compromissos e dar conselhos!
+        </p>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1">Chave da API Groq (API Key)</label>
+          <input type="password" id="setting-groq-key" placeholder="gsk_xxxxxxxxxxxxxxxxxxxxxxxx" class="w-full bg-slate-900 text-xs text-emerald-300 font-mono px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500" />
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Modelo de IA</label>
+            <select id="setting-groq-model" class="w-full bg-slate-900 text-xs text-slate-200 px-3 py-2 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500">
+              <option value="llama-3.1-8b-instant" selected>Llama 3.1 8B Instant (Recomendado / 100% Gratuito)</option>
+              <option value="llama3-70b-8192">Llama 3 70B (8192)</option>
+              <option value="llama3-8b-8192">Llama 3 8B (8192)</option>
+              <option value="gemma2-9b-it">Google Gemma 2 9B</option>
+              <option value="mixtral-8x7b-32768">Mixtral 8x7b 32k</option>
+            </select>
+          </div>
+          <div class="flex items-end">
+            <button type="button" id="btn-test-groq" onclick="app.testGroqConnection()" class="w-full py-2 px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors">
+              <i data-lucide="activity" class="w-3.5 h-3.5 text-emerald-400"></i> Testar Conexão
+            </button>
+          </div>
+        </div>
+
+        <div class="text-[11px] text-slate-400 italic bg-slate-900/50 p-2 rounded-lg border border-slate-800">
+          ?? Nota: Se você deixar a chave em branco, o <strong>Motor Semântico Local em Português</strong> continua funcionando perfeitamente de forma 100% gratuita e offline!
+        </div>
+      </div>
+
+      <!-- Configuração de Seguran�a e Senha / PIN -->
+      <div class="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-3.5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+              <i data-lucide="shield-check" class="w-4 h-4"></i> Seguran�a & Senha de Acesso
+            </span>
+          </div>
+          <span id="auth-status-badge" class="text-[11px] font-semibold px-2.5 py-0.5 rounded-lg bg-slate-700 text-slate-300">
+            Desativada
+          </span>
+        </div>
+
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Proteja seus lançamentos financeiros, anotações e agenda com um <strong>PIN de 4 a 6 dígitos</strong> criptografado.
+        </p>
+
+        <!-- Formul�rio para definir/alterar PIN -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Novo PIN Numérico</label>
+            <input type="password" id="setting-new-pin" maxlength="6" inputmode="numeric" placeholder="Ex: 1234" class="w-full bg-slate-900 text-xs text-white px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500 font-mono tracking-widest text-center" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Confirmar PIN</label>
+            <input type="password" id="setting-confirm-pin" maxlength="6" inputmode="numeric" placeholder="Repita o PIN" class="w-full bg-slate-900 text-xs text-white px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500 font-mono tracking-widest text-center" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1">Bloqueio Automático por Inatividade</label>
+          <select id="setting-autolock" class="w-full bg-slate-900 text-xs text-slate-200 px-3 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500">
+            <option value="1">Após 1 minuto sem uso</option>
+            <option value="2">Após 2 minutos sem uso</option>
+            <option value="5" selected>Após 5 minutos sem uso (Recomendado)</option>
+            <option value="15">Após 15 minutos sem uso</option>
+            <option value="0">Apenas bloqueio manual</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <button type="button" onclick="app.saveSecurityPin()" class="flex-1 py-2 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-xs border border-emerald-500/40 flex items-center justify-center gap-1.5 transition-colors">
+            <i data-lucide="key-round" class="w-3.5 h-3.5"></i> Salvar / Ativar PIN
+          </button>
+          <button type="button" id="btn-disable-auth" onclick="app.disableSecurityPin()" class="hidden py-2 px-3 rounded-xl bg-slate-700 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 font-semibold text-xs border border-slate-600 transition-colors">
+            Desativar Senha
+          </button>
+        </div>
+      </div>
+
+      <!-- Integração Bancária: Banco Inter API (Open Finance Direto) -->
+      <div class="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-3.5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-orange-400 flex items-center gap-1.5">
+              <i data-lucide="building-2" class="w-4 h-4"></i> Banco Inter API (Open Finance)
+            </span>
+          </div>
+          <span id="inter-status-badge" class="text-[11px] font-semibold px-2.5 py-0.5 rounded-lg bg-slate-700 text-slate-300">
+            Pronto para Conectar
+          </span>
+        </div>
+
+        <p class="text-xs text-slate-300 leading-relaxed">
+          O <strong>Banco Inter</strong> oferece APIs oficiais e gratuitas para correntistas PF e PJ (sem mensalidade nem intermedi�rios pagos) para consulta de extratos e saldos via mTLS.
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Ambiente</label>
+            <select id="setting-inter-env" class="w-full bg-slate-900 text-xs text-slate-200 px-3 py-2 rounded-xl border border-slate-700 focus:outline-none focus:border-orange-500">
+              <option value="sandbox">Sandbox (Testes Gratuitos)</option>
+              <option value="production">Produção (Conta Real)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Client ID</label>
+            <input type="text" id="setting-inter-client-id" placeholder="Ex: b65c19d4-..." class="w-full bg-slate-900 text-xs text-slate-100 px-3 py-2 rounded-xl border border-slate-700 focus:outline-none focus:border-orange-500 font-mono text-[11px]" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1">Client Secret</label>
+          <input type="password" id="setting-inter-client-secret" placeholder="Insira o Client Secret gerado no Inter" class="w-full bg-slate-900 text-xs text-slate-100 px-3 py-2 rounded-xl border border-slate-700 focus:outline-none focus:border-orange-500 font-mono text-[11px]" />
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center gap-2 pt-1">
+          <button type="button" onclick="app.testInterApi()" class="w-full sm:w-auto flex-1 py-2 px-3 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 font-bold text-xs border border-orange-500/40 flex items-center justify-center gap-1.5 transition-colors">
+            <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> Testar Conexão Inter
+          </button>
+
+        </div>
+
+        <div class="text-[11px] text-slate-400 italic bg-slate-900/50 p-2.5 rounded-lg border border-slate-800 space-y-1">
+          <div>?? <strong>Extrato de outros bancos (Nubank, Itaú, etc.):</strong> você não precisa esperar aprova��o de API! Basta clicar no botão azul <strong>"Importar Extrato"</strong> na aba Finanças e selecionar o arquivo <code>.OFX</code> ou <code>.CSV</code> baixado do seu internet banking.</div>
+        </div>
+      </div>
+
+      <!-- Conexão Banco de Dados PostgreSQL (aaPanel / VPS) -->
+      <div class="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-3.5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-sky-400 flex items-center gap-1.5">
+              <i data-lucide="database" class="w-4 h-4"></i> Banco de Dados PostgreSQL (aaPanel VPS)
+            </span>
+          </div>
+          <span id="pgsql-status-badge" class="text-[11px] font-semibold px-2.5 py-0.5 rounded-lg bg-slate-700 text-slate-300">
+            ? Modo Local Offline
+          </span>
+        </div>
+
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Conecte o FinControl Pro ao banco de dados relacional <strong>PostgreSQL</strong> da sua VPS para sincroniza��o em tempo real entre computador e celular.
+        </p>
+
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1">URL da API do Servidor (VPS aaPanel)</label>
+          <input type="text" id="setting-server-url" value="http://76.13.163.214/api" placeholder="Ex: http://76.13.163.214/api ou https://seu-dominio.com/api" class="w-full bg-slate-900 text-xs text-sky-300 px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-sky-500 font-mono text-[11px]" />
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center gap-2 pt-1">
+          <button type="button" id="btn-test-pgsql" onclick="app.testPostgresConnection()" class="w-full sm:w-auto flex-1 py-2 px-3 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-bold text-xs border border-sky-500/40 flex items-center justify-center gap-1.5 transition-colors">
+            <i data-lucide="activity" class="w-3.5 h-3.5"></i> Testar Conexão PostgreSQL
+          </button>
+          <button type="button" onclick="app.syncWithPostgres()" class="w-full sm:w-auto py-2 px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold text-xs border border-slate-600 flex items-center justify-center gap-1.5 transition-colors" title="Sincronizar dados com o PostgreSQL agora">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-sky-400"></i> Sincronizar Tudo
+          </button>
+        </div>
+      </div>
+
+      <!-- Open Finance bancário: Pluggy AI -->
+      <div class="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-3.5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-violet-400 flex items-center gap-1.5">
+              <i data-lucide="landmark" class="w-4 h-4"></i> Open Finance bancário (Pluggy AI)
+            </span>
+          </div>
+          <span id="pluggy-status-badge" class="text-[11px] font-semibold px-2.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            ?? Pronto para Conectar
+          </span>
+        </div>
+
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Conecte o <strong>Mercado Pago, Nubank, Itaú, Inter, Bradesco, Santander</strong> e outros bancos para sincronizar saldo e transações reais automaticamente.
+        </p>
+
+        <div class="space-y-2">
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Client ID (Pluggy)</label>
+            <input type="text" id="setting-pluggy-client-id" value="050ca994-3522-47e6-8571-d7582767173f" class="w-full bg-slate-900 text-xs text-violet-300 px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-violet-500 font-mono text-[11px]" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold text-slate-400 mb-1">Client Secret (Pluggy)</label>
+            <input type="password" id="setting-pluggy-client-secret" value="-kq-NqVfPS7Yt4IxRzHWrTixx2veW03aAvBLyj2OaME" class="w-full bg-slate-900 text-xs text-violet-300 px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-violet-500 font-mono text-[11px]" />
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center gap-2 pt-1">
+          <button type="button" onclick="window.pluggyService.openWidget()" class="w-full sm:w-auto flex-1 py-2 px-3 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 text-violet-300 font-bold text-xs border border-violet-500/40 flex items-center justify-center gap-1.5 transition-colors">
+            <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Conectar Nova Conta Bancária
+          </button>
+          <button type="button" onclick="window.pluggyService.syncAll()" class="w-full sm:w-auto py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 flex items-center justify-center gap-1.5 transition-colors" title="Sincronizar movimenta��es de todas as contas conectadas">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-emerald-400"></i> Sincronizar Tudo
+          </button>
+        </div>
+      </div>
+
+      <!-- Saldo Inicial & Ajuste de Conta -->
+      <div class="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-3">
+        <div class="flex items-center justify-between">
+          <h4 class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+            <i data-lucide="wallet" class="w-4 h-4 text-emerald-400"></i> Saldo Inicial da Conta
+          </h4>
+        </div>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Informe quanto você já tinha em conta bancária antes de iniciar os lançamentos. O sistema transporta e acumula esse valor automaticamente mês a mês!
+        </p>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1">Saldo Inicial (R$)</label>
+          <input type="number" id="setting-initial-balance" step="0.01" placeholder="0,00" class="w-full bg-slate-900 text-xs text-emerald-300 font-bold px-3.5 py-2.5 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500 font-mono" />
+        </div>
+      </div>
+
+      <!-- Preferências de Contas Vencidas -->
+      <div class="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-3">
+        <div class="flex items-center justify-between">
+          <h4 class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+            <i data-lucide="calendar-clock" class="w-4 h-4 text-amber-400"></i> Contas Vencidas de Meses Anteriores
+          </h4>
+          <label class="flex items-center gap-2 cursor-pointer select-none" title="Ativar ou desativar a soma de contas vencidas passadas no mês">
+            <input type="checkbox" id="setting-include-overdue" class="sr-only peer" checked>
+            <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 relative"></div>
+          </label>
+        </div>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          <strong>Somar contas vencidas anteriores no mês atual:</strong> quando ativado, contas que venceram em meses passados e continuam pendentes são somadas nas Saídas Previstas e deduzidas do Saldo Previsto. Desative se preferir visualizar apenas os valores isolados do mês.
+        </p>
+      </div>
+
+      <!-- Notificações e Lembretes Diários (Contas e Agenda) -->
+      <div id="settings-notif-section" class="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-3.5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+              <i data-lucide="bell-ring" class="w-4 h-4"></i> Notificações & Lembretes Diários
+            </span>
+          </div>
+          <span id="notif-status-badge" class="text-[11px] font-semibold px-2.5 py-0.5 rounded-lg bg-slate-700 text-slate-300">
+            ? Não ativadas
+          </span>
+        </div>
+
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Receba notificações autom�ticas no seu celular ou computador avisando sobre <strong>contas a pagar, valores a receber</strong> e <strong>compromissos da agenda</strong>.
+        </p>
+
+        <div class="space-y-2.5 pt-1">
+          <!-- Checkbox diário -->
+          <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+            <div>
+              <span class="text-xs font-medium text-slate-200 block">Resumo diário Matinal</span>
+              <span class="text-[11px] text-slate-400">Notifica o total de contas a pagar, a receber e agenda do dia</span>
+            </div>
+            <label class="cursor-pointer">
+              <input type="checkbox" id="setting-daily-notif" class="sr-only peer" checked>
+              <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 relative"></div>
+            </label>
+          </div>
+
+          <!-- Horário da Notifica��o Di�ria -->
+          <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+            <div>
+              <span class="text-xs font-medium text-slate-200 block">Horário do Resumo diário</span>
+              <span class="text-[11px] text-slate-400">Horário que você prefere receber o alerta diário</span>
+            </div>
+            <input type="time" id="setting-daily-notif-time" value="08:00" class="bg-slate-800 text-xs text-slate-100 px-3 py-1.5 rounded-lg border border-slate-700 focus:outline-none focus:border-amber-500 font-mono">
+          </div>
+
+          <!-- Checkbox Lembrete de Compromissos 15 min antes -->
+          <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+            <div>
+              <span class="text-xs font-medium text-slate-200 block">Lembrete de Compromissos (15 min antes)</span>
+              <span class="text-[11px] text-slate-400">Alerta sonoro com antecedência antes de cada compromisso</span>
+            </div>
+            <label class="cursor-pointer">
+              <input type="checkbox" id="setting-app-reminder" class="sr-only peer" checked>
+              <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 relative"></div>
+            </label>
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center gap-2 pt-1">
+          <button type="button" id="btn-request-notifications" onclick="window.notifications.requestPermission()" class="w-full sm:w-auto flex-1 py-2 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs border border-amber-500/40 flex items-center justify-center gap-1.5 transition-colors">
+            <i data-lucide="bell" class="w-3.5 h-3.5 text-amber-400"></i> Permitir Notificações
+          </button>
+          <button type="button" onclick="window.notifications.testNotification()" class="w-full sm:w-auto py-2 px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold text-xs border border-slate-600 flex items-center justify-center gap-1.5 transition-colors" title="Disparar uma notifica��o de teste agora mesmo">
+            <i data-lucide="send" class="w-3.5 h-3.5 text-emerald-400"></i> Testar Notifica��o Agora
+          </button>
+        </div>
+      </div>
+
+      <!-- Integração WhatsApp & Evolution API -->
+      <div id="settings-evolution-section" class="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-3.5">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+              <i data-lucide="message-square" class="w-4 h-4 text-emerald-400"></i> WhatsApp & Assistente IA (Evolution API)
+            </span>
+          </div>
+          <span id="evolution-status-badge" class="text-[11px] font-semibold px-2.5 py-0.5 rounded-lg bg-slate-700 text-slate-300">
+            ? Desconectado
+          </span>
+        </div>
+
+        <p class="text-xs text-slate-300 leading-relaxed">
+          Conecte sua instância da <strong>Evolution API</strong> para receber resumos diários de contas no WhatsApp, lembretes de agenda e interagir com o assistente por mensagens!
+        </p>
+
+        <div class="space-y-2.5 pt-1">
+          <!-- URL da Evolution API -->
+          <div class="space-y-1">
+            <label class="text-[11px] font-medium text-slate-300 block">URL da Evolution API</label>
+            <input type="text" id="setting-evolution-url" placeholder="https://api.bascully.com.br" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono" value="https://api.bascully.com.br" />
+            <p class="text-[10px] text-slate-400">endereço da Evolution API (ex: https://api.bascully.com.br ou IP da sua VPS).</p>
+          </div>
+
+          <!-- API Key Global / Instância -->
+          <div class="space-y-1">
+            <label class="text-[11px] font-medium text-slate-300 block">API Key (AUTHENTICATION_API_KEY)</label>
+            <input type="password" id="setting-evolution-apikey" placeholder="6A55A3BBE45B-4F2B-8250-AE33F929D789" value="6A55A3BBE45B-4F2B-8250-AE33F929D789" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono" />
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <!-- Nome da Instância -->
+            <div class="space-y-1">
+              <label class="text-[11px] font-medium text-slate-300 block">Nome da Instância</label>
+              <input type="text" id="setting-evolution-instance" value="teste" placeholder="teste" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono" />
+            </div>
+
+            <!-- Telefone do Usuário -->
+            <div class="space-y-1">
+              <label class="text-[11px] font-medium text-slate-300 block">Seu WhatsApp (com DDD)</label>
+              <input type="text" id="setting-evolution-phone" value="5511943137268" placeholder="Ex: 5511943137268" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono" />
+            </div>
+          </div>
+          <p class="text-[10px] text-emerald-400/80">?? Apenas este n�mero ter� permissão para consultar saldos e lan�ar despesas via WhatsApp.</p>
+
+          <!-- Toggles -->
+          <div class="space-y-2 pt-1">
+            <!-- Resumo diário WhatsApp -->
+            <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+              <div>
+                <span class="text-xs font-medium text-slate-200 block">Resumo diário no WhatsApp (08:00)</span>
+                <span class="text-[11px] text-slate-400">Envia resumo matinal das contas a pagar, a receber e agenda</span>
+              </div>
+              <label class="cursor-pointer">
+                <input type="checkbox" id="setting-evolution-summary" class="sr-only peer" checked>
+                <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 relative"></div>
+              </label>
+            </div>
+
+            <!-- Lembrete Agenda WhatsApp -->
+            <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+              <div>
+                <span class="text-xs font-medium text-slate-200 block">Lembretes de Agenda no WhatsApp</span>
+                <span class="text-[11px] text-slate-400">Alerta 15 minutos antes de compromissos marcados</span>
+              </div>
+              <label class="cursor-pointer">
+                <input type="checkbox" id="setting-evolution-appointments" class="sr-only peer" checked>
+                <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 relative"></div>
+              </label>
+            </div>
+
+            <!-- Auto Gravação via Chat WhatsApp -->
+            <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+              <div>
+                <span class="text-xs font-medium text-slate-200 block">Lançamento Automático via Chat</span>
+                <span class="text-[11px] text-slate-400">Salva gastos e compromissos enviados no WhatsApp imediatamente</span>
+              </div>
+              <label class="cursor-pointer">
+                <input type="checkbox" id="setting-evolution-auto-execute" class="sr-only peer" checked>
+                <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 relative"></div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Ações da Conexão Evolution -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
+            <button type="button" id="btn-evolution-connect" onclick="app.connectEvolutionWhatsApp()" class="py-2 px-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1.5 transition-colors">
+              <i data-lucide="qr-code" class="w-3.5 h-3.5"></i> Conectar / QR
+            </button>
+            <button type="button" id="btn-evolution-check" onclick="app.checkEvolutionStatus()" class="py-2 px-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold text-xs border border-slate-600 flex items-center justify-center gap-1.5 transition-colors">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Status
+            </button>
+            <button type="button" id="btn-evolution-test" onclick="app.testEvolutionMessage()" class="py-2 px-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-semibold text-xs border border-emerald-500/30 flex items-center justify-center gap-1.5 transition-colors">
+              <i data-lucide="send" class="w-3.5 h-3.5"></i> Testar Envio
+            </button>
+            <button type="button" id="btn-evolution-logout" onclick="app.logoutEvolutionWhatsApp()" class="py-2 px-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-semibold text-xs border border-rose-500/30 flex items-center justify-center gap-1.5 transition-colors">
+              <i data-lucide="power" class="w-3.5 h-3.5"></i> Desconectar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gestão de Backups e Dados -->
+      <div class="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-3">
+        <h4 class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+          <i data-lucide="database" class="w-4 h-4 text-blue-400"></i> Seguran�a, Backup & Restaura��o
+        </h4>
+
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="window.exporter.downloadFullBackup()" class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 border border-slate-700 transition-colors">
+            <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-400"></i> Baixar Backup JSON
+          </button>
+
+          <label class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 border border-slate-700 cursor-pointer transition-colors text-center">
+            <i data-lucide="upload" class="w-3.5 h-3.5 text-blue-400"></i> Restaurar Backup
+            <input type="file" accept=".json" class="hidden" onchange="window.exporter.importBackupFile(this)" />
+          </label>
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+
+          <button type="button" onclick="app.confirmAndClearAllData()" class="py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-semibold border border-rose-500/30 flex items-center gap-1.5 transition-colors" title="Zerar dados com backup de emergência e confirma��o de seguran�a">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Limpar Dados
+          </button>
+        </div>
+      </div>
+
+      <!-- Salvar e Fechar -->
+      <div class="pt-2 flex items-center gap-2">
+        <button type="button" onclick="app.saveSettings()" class="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-md shadow-emerald-500/20">
+          Salvar Configurações
+        </button>
+        <button type="button" onclick="app.closeSettingsModal()" class="py-2.5 px-4 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs">
+          Fechar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 5: QR CODE MOBILE ==================== -->
+  <div id="modal-qrcode" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 hidden">
+    <div class="modal-sheet w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl text-center space-y-4">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+        <h3 class="font-bold text-sm text-white flex items-center gap-1.5">
+          <i data-lucide="smartphone" class="w-4 h-4 text-emerald-400"></i> Acessar no Celular
+        </h3>
+        <button onclick="app.closeMobileQRModal()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-300 leading-relaxed">
+        Conecte seu celular no mesmo Wi-Fi deste computador e aponte a c�mera para o QR Code abaixo:
+      </p>
+
+      <div class="p-3 bg-white rounded-2xl inline-block shadow-lg mx-auto">
+        <canvas id="qr-code-canvas"></canvas>
+      </div>
+
+      <!-- endereço com IP expl�cito -->
+      <div class="p-3 rounded-2xl bg-slate-800/80 border border-slate-700/60 text-xs text-center space-y-1.5">
+        <span class="text-slate-400 text-[11px] block">endereço direto para o navegador do celular:</span>
+        <div class="flex items-center justify-center gap-2">
+          <code id="qr-url-text" class="text-emerald-400 font-mono font-bold text-sm select-all break-all bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-700">http://192.168.1.73:8080/</code>
+        </div>
+      </div>
+
+      <div class="text-[11px] text-slate-400 text-left space-y-1 bg-slate-800/40 p-3 rounded-xl border border-slate-700/40">
+        <p class="font-semibold text-slate-300">?? Como abrir e instalar no celular:</p>
+        <p>1. Conecte o celular no <strong>mesmo Wi-Fi</strong> do computador.</p>
+        <p>2. Aponte a c�mera para o QR Code acima ou digite <strong>http://192.168.1.73:8080/</strong> no navegador do celular.</p>
+        <p>3. Toque em <strong>"Adicionar é Tela de Início"</strong> para instalar como app.</p>
+      </div>
+
+      <button onclick="app.closeMobileQRModal()" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold">
+        Entendi
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL 6: PRÉVIA DE IMPORTAÇÃO BANCÁRIA (.OFX / .CSV) ==================== -->
+  <div id="modal-import-bank" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 hidden">
+    <div class="modal-sheet w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+      <!-- Header do Modal -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+        <div>
+          <h3 class="font-bold text-sm sm:text-base text-white flex items-center gap-2">
+            <i data-lucide="file-check-2" class="w-5 h-5 text-blue-400"></i>
+            Importar Extrato bancário
+          </h3>
+          <div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
+            <span id="import-file-name" class="font-medium text-slate-300">extrato.ofx</span>
+            <span>�</span>
+            <span id="import-total-count" class="text-emerald-400 font-semibold">0 lançamentos</span>
+          </div>
+        </div>
+        <button onclick="window.bankImport.closeImportModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Barra de Ações / Selecionar Todos -->
+      <div class="flex items-center justify-between text-xs py-1 text-slate-300 bg-slate-800/50 px-3 py-2 rounded-xl border border-slate-700/50 shrink-0">
+        <label class="flex items-center gap-2 cursor-pointer font-medium">
+          <input type="checkbox" id="chk-import-all" checked onchange="window.bankImport.toggleSelectAll(this.checked)" class="w-4 h-4 rounded border-slate-600 bg-slate-900 text-emerald-500 focus:ring-0 cursor-pointer" />
+          <span>Selecionar todos os lançamentos</span>
+        </label>
+        <span class="text-[11px] text-slate-400 hidden sm:inline">Desmarque o que não quiser computar</span>
+      </div>
+
+      <!-- Lista Rol�vel de Lançamentos Detectados -->
+      <div id="import-preview-list" class="space-y-2 overflow-y-auto flex-1 pr-1 custom-scrollbar">
+        <!-- Populado dinamicamente via BankImportModule -->
+      </div>
+
+      <!-- Rodapé com Bot�es de Confirma��o -->
+      <div class="pt-3 border-t border-slate-800 flex items-center justify-end gap-2.5 shrink-0">
+        <button type="button" onclick="window.bankImport.closeImportModal()" class="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold">
+          Cancelar
+        </button>
+        <button type="button" onclick="window.bankImport.confirmImport()" class="py-2.5 px-5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-2 shadow-md shadow-emerald-500/20">
+          <i data-lucide="check" class="w-4 h-4"></i> Confirmar Importação
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== TELA DE BLOQUEIO / LOCK SCREEN ==================== -->
+  <div id="lock-screen-overlay" class="fixed inset-0 z-[100] bg-[#090d16]/95 backdrop-blur-2xl flex items-center justify-center p-4 hidden">
+    <div id="lock-card-box" class="w-full max-w-xs text-center space-y-5">
+      <!-- Ícone e Branding -->
+      <div class="space-y-2">
+        <div class="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 font-black text-2xl shadow-xl shadow-emerald-500/30">
+          <i data-lucide="lock" class="w-8 h-8 text-slate-950"></i>
+        </div>
+        <h2 class="text-lg font-black text-white tracking-tight">FinControl Pro</h2>
+        <p class="text-xs text-slate-400">Digite seu PIN de seguran�a</p>
+      </div>
+
+      <!-- Indicadores de PIN (Dots) -->
+      <div id="lock-pin-dots" class="flex items-center justify-center gap-3 py-2">
+        <!-- Populado dinamicamente -->
+      </div>
+
+      <!-- Mensagem de Erro (Shake) -->
+      <div id="lock-error-msg" class="hidden text-xs text-rose-400 font-semibold bg-rose-500/10 py-1.5 px-3 rounded-xl border border-rose-500/20">
+        PIN incorreto. Tente novamente.
+      </div>
+
+      <!-- Teclado Numérico Virtual Touch-Friendly -->
+      <div class="grid grid-cols-3 gap-3 w-64 mx-auto pt-2">
+        <button onclick="window.auth.handleKeypadPress('1')" class="keypad-btn h-14 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 text-xl font-bold text-white border border-slate-700/50 shadow-sm flex items-center justify-center">1</button>
+        <button onclick="window.auth.handleKeypadPress('2')" class="keypad-btn h-14 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 text-xl font-bold text-white border border-slate-700/50 shadow-sm flex items-center justify-center">2</button>
+        <button onclick="window.auth.handleKeypadPress('3')" class="keypad-btn h-14 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 text-xl font-bold text-white border border-slate-700/50 shadow-sm flex items-center justify-center">3</button>
+
+        <button onclick="window.auth.handleKeypadPress('4')" class="keypad-btn h-14 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 text-xl font-bold text-white border border-slate-700/50 shadow-sm flex items-center justify-center">4</button>
+        <button onclick="window.auth.handleKeypadPress('5')" class="keypad-btn h-14 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 text-xl font-bold text-white border border-slate-700/50 shadow-sm flex items-center justify-center">5</button>
+        <button onclick="window.auth.handleKeypadPress('6')" class="keypad-btn h-14 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 text-xl font-bold text-white border border-slate-700/50 shadow-sm flex items-center justify-center">6</button>
+
+        <button onclick="window.auth.handleKeypadPress('7')" class="keypad-btn h-14 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 text-xl font-bold text-white border border-slate-700/50 shadow-sm flex items-center justify-center">7</button>
+        <button onclick="window.auth.handleKeypadPress('8')" class="keypad-btn h-14 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 text-xl font-bold text-white border border-slate-700/50 shadow-sm flex items-center justify-center">8</button>
+        <button onclick="window.auth.handleKeypadPress('9')" class="keypad-btn h-14 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 text-xl font-bold text-white border border-slate-700/50 shadow-sm flex items-center justify-center">9</button>
+
+        <button onclick="window.auth.handleKeypadPress('clear')" class="keypad-btn h-14 rounded-2xl bg-slate-800/40 hover:bg-slate-700/60 text-xs font-bold text-slate-400 border border-slate-700/30 flex items-center justify-center">Limpar</button>
+        <button onclick="window.auth.handleKeypadPress('0')" class="keypad-btn h-14 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 text-xl font-bold text-white border border-slate-700/50 shadow-sm flex items-center justify-center">0</button>
+        <button onclick="window.auth.handleKeypadPress('backspace')" class="keypad-btn h-14 rounded-2xl bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/30 flex items-center justify-center">
+          <i data-lucide="delete" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <p class="text-[11px] text-slate-500">Dica: no computador você também pode digitar os números no teclado físico</p>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL QR CODE EVOLUTION API (WHATSAPP) ==================== -->
+  <div id="modal-evolution-qrcode" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 hidden">
+    <div class="modal-sheet w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4 text-center">
+      <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+        <div class="flex items-center gap-2">
+          <div class="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+            <i data-lucide="qr-code" class="w-4 h-4"></i>
+          </div>
+          <h3 class="font-bold text-xs text-white">Conectar WhatsApp Evolution</h3>
+        </div>
+        <button onclick="app.closeEvolutionQrModal()" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-300">
+        Abra o WhatsApp no celular > <strong>Aparelhos Conectados</strong> > <strong>Conectar um aparelho</strong> e aponte a c�mera para o QR Code abaixo:
+      </p>
+
+      <div id="evolution-qrcode-box" class="flex items-center justify-center p-3 bg-white rounded-2xl mx-auto w-64 h-64 border-2 border-emerald-500/40 shadow-inner">
+        <div class="text-center p-2">
+          <i data-lucide="loader-2" class="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-2"></i>
+          <span class="text-xs text-slate-700 font-medium block">Gerando QR Code...</span>
+        </div>
+      </div>
+
+      <div id="evolution-pairing-code-box" class="hidden p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-mono text-emerald-400 font-bold tracking-wider"></div>
+
+      <div class="flex items-center justify-between px-1">
+        <span id="evolution-qrcode-status" class="text-[11px] text-slate-400">
+          Aguardando leitura...
+        </span>
+        <button type="button" onclick="app.connectEvolutionWhatsApp()" class="text-[11px] text-emerald-400 hover:underline flex items-center gap-1">
+          <i data-lucide="refresh-cw" class="w-3 h-3"></i> Atualizar QR
+        </button>
+      </div>
+
+      <button type="button" onclick="app.closeEvolutionQrModal()" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold">
+        Fechar Janela
+      </button>
+    </div>
+  </div>
+
+  <!-- Scripts da Aplica��o com Cache-Buster v6.2 -->
+  <script src="js/db.js?v=6.2"></script>
+  <script src="js/finance.js?v=6.2"></script>
+  <script src="js/agenda.js?v=6.2"></script>
+  <script src="js/notes.js?v=6.2"></script>
+  <script src="js/chat-nlp.js?v=6.2"></script>
+  <script src="js/charts.js?v=6.2"></script>
+  <script src="js/export.js?v=6.2"></script>
+  <script src="js/auth.js?v=6.2"></script>
+  <script src="js/bank-import.js?v=6.2"></script>
+  <script src="js/pluggy-service.js?v=7.0"></script>
+  <script src="js/evolution-service.js?v=6.2"></script>
+  <script src="js/notifications.js?v=6.2"></script>
+  <script src="js/asaas-service.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
