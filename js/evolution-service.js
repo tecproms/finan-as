@@ -64,9 +64,10 @@ class EvolutionService {
 
   // Método resiliente de chamada HTTP: usa proxy local primeiro (evita CORS/timeout do browser), fallback direto
   async apiCall(url, method = 'GET', customHeaders = {}, bodyPayload = null) {
-    // 1. Tenta via Proxy Local (mais confiável - sem CORS, sem bloqueio do browser)
+    // 1. Tenta via Proxy da API (evita CORS e bloqueios de rede no navegador)
     try {
-      const proxyResp = await fetch('/api/evolution/proxy', {
+      const apiUrl = (window.db && window.db.getApiUrl) ? window.db.getApiUrl() : '/api';
+      const proxyResp = await fetch(`${apiUrl}/evolution/proxy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

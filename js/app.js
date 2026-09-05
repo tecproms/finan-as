@@ -1,4 +1,4 @@
-﻿// Controlador Principal da Aplicação SPA - FinControl Pro
+// Controlador Principal da Aplicação SPA - FinControl Pro
 
 class App {
   constructor() {
@@ -1616,7 +1616,7 @@ class App {
 
       if (evoUrl) evoUrl.value = evoCfg.apiUrl || 'https://api.bascully.com.br';
       if (evoKey) evoKey.value = evoCfg.apiKey || 'MudeParaUmaSenhaForte123';
-      if (evoInst) evoInst.value = evoCfg.instanceName || 'financeiro3';
+      if (evoInst) evoInst.value = evoCfg.instanceName || 'financeiro5';
       if (evoPhone) evoPhone.value = evoCfg.userPhone || '5511943137268';
       if (evoSummary) evoSummary.checked = evoCfg.notifySummary !== false;
       if (evoApps) evoApps.checked = evoCfg.notifyAppointments !== false;
@@ -1933,10 +1933,10 @@ class App {
 
     // Salva configurações Evolution API (WhatsApp)
     if (window.evolutionService) {
-      const evoUrl = document.getElementById('setting-evolution-url')?.value.trim() || 'http://localhost:8080';
-      const evoKey = document.getElementById('setting-evolution-apikey')?.value.trim() || '';
-      const evoInst = document.getElementById('setting-evolution-instance')?.value.trim() || 'fincontrol';
-      const evoPhone = document.getElementById('setting-evolution-phone')?.value.trim() || '';
+      const evoUrl = document.getElementById('setting-evolution-url')?.value.trim() || 'https://api.bascully.com.br';
+      const evoKey = document.getElementById('setting-evolution-apikey')?.value.trim() || 'MudeParaUmaSenhaForte123';
+      const evoInst = document.getElementById('setting-evolution-instance')?.value.trim() || 'financeiro5';
+      const evoPhone = document.getElementById('setting-evolution-phone')?.value.trim() || '5511943137268';
       const evoSummary = document.getElementById('setting-evolution-summary')?.checked !== false;
       const evoApps = document.getElementById('setting-evolution-appointments')?.checked !== false;
       const evoAuto = document.getElementById('setting-evolution-auto-execute')?.checked !== false;
@@ -1984,8 +1984,8 @@ class App {
   async checkEvolutionStatus() {
     if (!window.evolutionService) return;
     const url = document.getElementById('setting-evolution-url')?.value.trim() || 'https://api.bascully.com.br';
-    const key = document.getElementById('setting-evolution-apikey')?.value.trim() || '6A55A3BBE45B-4F2B-8250-AE33F929D789';
-    const instance = document.getElementById('setting-evolution-instance')?.value.trim() || 'teste';
+    const key = document.getElementById('setting-evolution-apikey')?.value.trim() || 'MudeParaUmaSenhaForte123';
+    const instance = document.getElementById('setting-evolution-instance')?.value.trim() || 'financeiro5';
 
     const btn = document.getElementById('btn-evolution-check');
     if (btn) btn.textContent = 'Verificando...';
@@ -1999,7 +1999,7 @@ class App {
     }
 
     if (res.connected) {
-      alert(`🟢 Evolution API conectada com sucesso!\nInstância: ${instance || 'teste'}\nEstado: Aberta / Conectada ao WhatsApp`);
+      alert(`🟢 Evolution API conectada com sucesso!\nInstância: ${instance || 'financeiro5'}\nEstado: Aberta / Conectada ao WhatsApp`);
     } else if (res.state === 'connecting') {
       alert(`🟡 Instância conectando... Abra o QR Code para parear.`);
     } else if (res.state === 'not_found') {
@@ -2012,8 +2012,8 @@ class App {
   async connectEvolutionWhatsApp() {
     if (!window.evolutionService) return;
     const url = document.getElementById('setting-evolution-url')?.value.trim() || 'https://api.bascully.com.br';
-    const key = document.getElementById('setting-evolution-apikey')?.value.trim() || '6A55A3BBE45B-4F2B-8250-AE33F929D789';
-    const instance = document.getElementById('setting-evolution-instance')?.value.trim() || 'teste';
+    const key = document.getElementById('setting-evolution-apikey')?.value.trim() || 'MudeParaUmaSenhaForte123';
+    const instance = document.getElementById('setting-evolution-instance')?.value.trim() || 'financeiro5';
     const phone = document.getElementById('setting-evolution-phone')?.value.trim() || '5511943137268';
 
     // Salva temporariamente os inputs
@@ -2145,9 +2145,9 @@ class App {
   async testEvolutionMessage() {
     if (!window.evolutionService) return;
     const url = document.getElementById('setting-evolution-url')?.value.trim() || 'https://api.bascully.com.br';
-    const key = document.getElementById('setting-evolution-apikey')?.value.trim() || '6A55A3BBE45B-4F2B-8250-AE33F929D789';
-    const instance = document.getElementById('setting-evolution-instance')?.value.trim() || 'teste';
-    const phone = document.getElementById('setting-evolution-phone')?.value.trim() || '';
+    const key = document.getElementById('setting-evolution-apikey')?.value.trim() || 'MudeParaUmaSenhaForte123';
+    const instance = document.getElementById('setting-evolution-instance')?.value.trim() || 'financeiro5';
+    const phone = document.getElementById('setting-evolution-phone')?.value.trim() || '5511943137268';
 
     if (!phone) {
       alert('⚠️ Por favor, digite o seu número de WhatsApp com DDD (ex: 11999998888) antes de testar.');

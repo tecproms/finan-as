@@ -138,6 +138,7 @@ class Database {
           if (serverSettings.auth) merged.auth = serverSettings.auth;
           if (serverSettings.pluggyItems) merged.pluggyItems = serverSettings.pluggyItems;
           if (serverSettings.initialBalance !== undefined) merged.initialBalance = serverSettings.initialBalance;
+          if (serverSettings.evolution) merged.evolution = serverSettings.evolution;
           localStorage.setItem(DB_KEYS.SETTINGS, JSON.stringify(merged));
           this.notify('settings_updated', merged);
         }
@@ -440,7 +441,8 @@ class Database {
           includeOverdueInMetrics: merged.includeOverdueInMetrics,
           dailyNotificationEnabled: merged.dailyNotificationEnabled,
           dailyNotificationTime: merged.dailyNotificationTime,
-          appointmentReminderEnabled: merged.appointmentReminderEnabled
+          appointmentReminderEnabled: merged.appointmentReminderEnabled,
+          evolution: merged.evolution
         })
       }).catch(e => console.warn('Sync settings to VPS error:', e));
     }

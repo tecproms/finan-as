@@ -431,6 +431,7 @@ app.get('/api/settings', async (req, res) => {
     if (r.pluggy_client_id) resp.pluggyClientId = r.pluggy_client_id;
     if (r.pluggy_client_secret) resp.pluggyClientSecret = r.pluggy_client_secret;
     if (r.initial_balance !== undefined && r.initial_balance !== null) resp.initialBalance = r.initial_balance;
+    if (r.evolution_settings) resp.evolution = r.evolution_settings;
     res.json(resp);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -449,6 +450,7 @@ app.post('/api/settings', async (req, res) => {
         ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS pluggy_client_id TEXT;
         ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS pluggy_client_secret TEXT;
         ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS initial_balance NUMERIC DEFAULT 0;
+        ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS evolution_settings JSONB;
       EXCEPTION WHEN others THEN NULL;
       END $$;
     `).catch(() => {});
@@ -458,8 +460,8 @@ app.post('/api/settings', async (req, res) => {
         id, user_name, groq_api_key, groq_model, autolock_minutes, 
         mercado_pago_token, mercado_pago_auto_sync, inter_settings,
         auth_data, pluggy_items, pluggy_client_id, pluggy_client_secret, initial_balance,
-        updated_at
-      ) VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP)
+        evolution_settings, updated_at
+      ) VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP)
       ON CONFLICT (id) DO UPDATE SET
         user_name = COALESCE(EXCLUDED.user_name, app_settings.user_name),
         groq_api_key = COALESCE(EXCLUDED.groq_api_key, app_settings.groq_api_key),
@@ -473,6 +475,7 @@ app.post('/api/settings', async (req, res) => {
         pluggy_client_id = COALESCE(EXCLUDED.pluggy_client_id, app_settings.pluggy_client_id),
         pluggy_client_secret = COALESCE(EXCLUDED.pluggy_client_secret, app_settings.pluggy_client_secret),
         initial_balance = COALESCE(EXCLUDED.initial_balance, app_settings.initial_balance),
+        evolution_settings = COALESCE(EXCLUDED.evolution_settings, app_settings.evolution_settings),
         updated_at = CURRENT_TIMESTAMP
       RETURNING *
     `;
@@ -488,7 +491,8 @@ app.post('/api/settings', async (req, res) => {
       s.pluggyItems ? JSON.stringify(s.pluggyItems) : null,
       s.pluggyClientId || null,
       s.pluggyClientSecret || null,
-      s.initialBalance !== undefined ? s.initialBalance : null
+      s.initialBalance !== undefined ? s.initialBalance : null,
+      s.evolution ? JSON.stringify(s.evolution) : (s.evolution_settings ? JSON.stringify(s.evolution_settings) : null)
     ];
     await query(sql, params);
     res.json({ success: true, message: 'Configurações salvas no PostgreSQL com sucesso!' });
@@ -925,8 +929,48 @@ app.post('/api/pluggy/webhook', async (req, res) => {
 });
 
 // ==========================================
-// 8. WEBHOOK EVOLUTION API (WHATSAPP ASSISTANT)
+// 8. PROXY & WEBHOOK EVOLUTION API (WHATSAPP)
 // ==========================================
+
+// Proxy HTTP para Evolution API (evita bloqueios de CORS e SSL no navegador)
+app.post('/api/evolution/proxy', async (req, res) => {
+  try {
+    const { targetUrl, method = 'GET', apiKey, payload } = req.body;
+    if (!targetUrl) return res.status(400).json({ success: false, error: 'targetUrl é obrigatório' });
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'apikey': apiKey || 'MudeParaUmaSenhaForte123'
+    };
+
+    const options = {
+      method: method,
+      headers: headers
+    };
+
+    if (payload && (method === 'POST' || method === 'PUT')) {
+      options.body = JSON.stringify(payload);
+    }
+
+    const response = await fetch(targetUrl, options);
+    const contentType = response.headers.get('content-type') || '';
+    let data;
+    if (contentType.includes('application/json')) {
+      data = await response.json().catch(() => ({}));
+    } else {
+      data = await response.text().catch(() => '');
+    }
+
+    if (response.ok) {
+      res.json({ success: true, status: response.status, data: data });
+    } else {
+      res.status(response.status).json({ success: false, status: response.status, data: data, error: data?.message || data?.error || 'Erro na Evolution API' });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/evolution/webhook', async (req, res) => {
   res.status(200).json({ received: true });
 
@@ -963,7 +1007,7 @@ app.post('/api/evolution/webhook', async (req, res) => {
     const sRes = await query('SELECT * FROM app_settings WHERE id = $1', ['default']);
     const settings = sRes.rows[0] || {};
     const evoSettings = settings.evolution_settings || {};
-    const authPhone = (evoSettings.userPhone || '').replace(/\D/g, '');
+    const authPhone = (evoSettings.userPhone || '5511943137268').replace(/\D/g, '');
 
     // Se houver telefone configurado, valida autorização
     if (authPhone && !senderNumber.endsWith(authPhone.slice(-8))) {
@@ -1031,9 +1075,9 @@ app.post('/api/evolution/webhook', async (req, res) => {
     }
 
     // Dispara mensagem de volta via Evolution API se configurada
-    const evoUrl = (evoSettings.apiUrl || 'http://localhost:8080').replace(/\/+$/, '');
-    const evoKey = evoSettings.apiKey || '';
-    const evoInst = evoSettings.instanceName || 'fincontrol';
+    const evoUrl = (evoSettings.apiUrl || 'https://api.bascully.com.br').replace(/\/+$/, '');
+    const evoKey = evoSettings.apiKey || 'MudeParaUmaSenhaForte123';
+    const evoInst = evoSettings.instanceName || 'financeiro5';
 
     if (evoUrl && evoInst) {
       try {
