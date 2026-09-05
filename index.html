@@ -86,14 +86,14 @@
       </nav>
 
       <!-- Seletor de Mês & Ações do Topo -->
-      <div class="flex items-center gap-2 sm:gap-3">
+      <div class="flex items-center gap-1.5 sm:gap-3 shrink-0">
         <!-- Seletor de Mês Compacto Estilo Calendário -->
         <div class="relative">
           <div class="flex items-center bg-slate-800/90 rounded-xl border border-slate-700/70 p-0.5 shadow-sm">
             <button id="btn-prev-month" onclick="app.navigateMonth(-1)" title="Mês Anterior" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700/70 transition-colors">
               <i data-lucide="chevron-left" class="w-4 h-4"></i>
             </button>
-            <button id="btn-month-display" onclick="app.toggleMonthPicker()" title="Escolher Mês / Calendário" class="px-2.5 py-1 text-xs font-bold text-slate-100 hover:text-emerald-400 flex items-center gap-1.5 transition-colors">
+            <button id="btn-month-display" onclick="app.toggleMonthPicker()" title="Escolher Mês / Calendário" class="px-2 sm:px-2.5 py-1 text-xs font-bold text-slate-100 hover:text-emerald-400 flex items-center gap-1.5 transition-colors">
               <i data-lucide="calendar" class="w-3.5 h-3.5 text-emerald-400"></i>
               <span id="current-month-label">Carregando...</span>
             </button>
@@ -123,7 +123,7 @@
             <!-- Ação Rápida de Rodapé -->
             <div class="mt-2.5 pt-2 border-t border-slate-800 flex justify-between items-center text-[11px]">
               <button onclick="app.goToCurrentMonth()" class="text-emerald-400 hover:text-emerald-300 font-bold hover:underline flex items-center gap-1">
-                <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Ms Atual
+                <i data-lucide="rotate-ccw" class="w-3 h-3"></i> Mês Atual
               </button>
               <button onclick="app.toggleMonthPicker(false)" class="text-slate-400 hover:text-slate-200 font-medium">
                 Fechar
@@ -132,27 +132,27 @@
           </div>
         </div>
 
-        <!-- Boto de Bloqueio Rpido (PIN) -->
+        <!-- Botão de Bloqueio Rápido (PIN) -->
         <button id="btn-quick-lock" onclick="window.auth.lock()" title="Bloquear Sistema" class="hidden p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 border border-slate-700/60 transition-colors flex items-center gap-1.5 text-xs font-semibold">
           <i data-lucide="lock" class="w-4 h-4 text-rose-400"></i>
           <span class="hidden xl:inline">Bloquear</span>
         </button>
 
-        <!-- Boto QR Code Mobile -->
-        <button onclick="app.openMobileQRModal()" title="Abrir no Celular via QR Code" class="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-colors flex items-center gap-1.5 text-xs font-semibold">
+        <!-- Botão QR Code Mobile (Apenas em telas grandes) -->
+        <button onclick="app.openMobileQRModal()" title="Abrir no Celular via QR Code" class="hidden lg:flex p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-colors items-center gap-1.5 text-xs font-semibold">
           <i data-lucide="smartphone" class="w-4 h-4 text-emerald-400"></i>
           <span class="hidden lg:inline">Conectar Celular</span>
         </button>
 
-        <!-- Boto Notificaes e Lembretes Dirios -->
-        <button id="btn-header-notifications" onclick="window.notifications.promptPermissionOrOpenSettings()" title="Notificaes e Lembretes Dirios de Contas e Agenda" class="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-colors flex items-center gap-1.5 text-xs font-semibold relative">
+        <!-- Botão Notificações e Lembretes Diários -->
+        <button id="btn-header-notifications" onclick="window.notifications.promptPermissionOrOpenSettings()" title="Notificações e Lembretes Diários" class="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-colors flex items-center gap-1.5 text-xs font-semibold relative shrink-0">
           <i data-lucide="bell" id="header-bell-icon" class="w-4 h-4 text-amber-400"></i>
           <span class="hidden xl:inline">Lembretes</span>
           <span id="header-bell-dot" class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-400 animate-pulse hidden"></span>
         </button>
 
-        <!-- Boto Configuraes (Groq API, Backups, Senha) -->
-        <button onclick="app.openSettingsModal()" title="Configuraes, Senha e Groq API" class="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-colors flex items-center gap-1.5 text-xs font-semibold">
+        <!-- Botão Configurações -->
+        <button onclick="app.openSettingsModal()" title="Configurações" class="shrink-0 p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-colors flex items-center gap-1.5 text-xs font-semibold">
           <i data-lucide="settings" class="w-4 h-4 text-slate-300"></i>
         </button>
       </div>
@@ -660,9 +660,15 @@
       </button>
 
       <!-- Tab Chat IA -->
-      <button onclick="app.switchTab('chat')" data-tab="chat" class="nav-item flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-400 py-1 px-2.5 rounded-xl transition-all">
+      <button onclick="app.switchTab('chat')" data-tab="chat" class="nav-item flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-400 py-1 px-2 rounded-xl transition-all">
         <i data-lucide="bot" class="nav-icon w-5 h-5"></i>
         <span class="text-[10px] font-semibold">Chat IA</span>
+      </button>
+
+      <!-- Tab Configurações -->
+      <button onclick="app.openSettingsModal()" class="nav-item flex flex-col items-center gap-1 text-slate-400 hover:text-emerald-400 py-1 px-2 rounded-xl transition-all" title="Configurações">
+        <i data-lucide="settings" class="nav-icon w-5 h-5"></i>
+        <span class="text-[10px] font-semibold">Ajustes</span>
       </button>
     </div>
   </nav>
