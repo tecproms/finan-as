@@ -8,7 +8,9 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
+import android.net.http.SslError;
 import android.webkit.PermissionRequest;
+import android.webkit.SslErrorHandler;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -59,7 +61,13 @@ public class MainActivity extends AppCompatActivity {
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setUseWideViewPort(true);
         settings.setLoadWithOverviewMode(true);
+        settings.setJavaScriptCanOpenWindowsAutomatically(true);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        }
         settings.setUserAgentString(settings.getUserAgentString() + " FinControlApp/1.0");
+
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
 
         // Ponte JS nativa
         webView.addJavascriptInterface(new WebAppInterface(this), "Android");
@@ -67,9 +75,14 @@ public class MainActivity extends AppCompatActivity {
         // WebViewClient
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                handler.proceed(); // Evita tela preta por bloqueio de certificado SSL na VPS
+            }
+
+            @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
-                if (url.startsWith("https://finan.bascully.com.br") || url.startsWith("http://76.13.163.214")) {
+                if (url.startsWith("https://finan.bascully.com.br") || url.startsWith("http://76.13.163.214") || url.startsWith("http://finan.bascully.com.br")) {
                     return false; // Carrega dentro do WebView
                 }
                 // Links externos (WhatsApp, etc) abre no navegador do celular
@@ -91,6 +104,12 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 super.onReceivedError(view, request, error);
+                swipeRefreshLayout.setRefreshing(false);
+            }
+
+            @Override
+            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                super.onReceivedError(view, errorCode, description, failingUrl);
                 swipeRefreshLayout.setRefreshing(false);
             }
         });
