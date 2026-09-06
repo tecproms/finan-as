@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg_dark">#090D16</color>
+    <color name="emerald_500">#10B981</color>
+    <color name="emerald_700">#047857</color>
+    <color name="white">#FFFFFF</color>
+</resources>
