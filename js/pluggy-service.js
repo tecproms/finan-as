@@ -188,14 +188,32 @@ class PluggyService {
           latestBalance = acc.balance;
         }
 
-        // 3. Busca transações da conta
-        const txResp = await fetch(`${this.apiBase}/v2/transactions?accountId=${acc.id}&pageSize=500`, {
-          headers: { 'X-API-KEY': apiKey }
-        });
+        // 3. Busca transações da conta via Pluggy v2 (cursor-based pagination)
+        let txUrl = `${this.apiBase}/v2/transactions?accountId=${acc.id}`;
+        let rawTransactions = [];
 
-        if (!txResp.ok) continue;
-        const txData = await txResp.json();
-        const rawTransactions = txData.results || [];
+        while (txUrl) {
+          const txResp = await fetch(txUrl, {
+            headers: { 'X-API-KEY': apiKey }
+          });
+
+          if (!txResp.ok) {
+            console.warn(`[Pluggy v2] Falha ao buscar transações (HTTP ${txResp.status}) na URL: ${txUrl}`);
+            break;
+          }
+
+          const txData = await txResp.json();
+          if (Array.isArray(txData.results)) {
+            rawTransactions.push(...txData.results);
+          }
+
+          // Segue para a próxima página de resultados se houver
+          if (txData.next && rawTransactions.length < 2000) {
+            txUrl = `${this.apiBase}/v2/transactions${txData.next}`;
+          } else {
+            txUrl = null;
+          }
+        }
 
         const structuredTxs = [];
         for (const t of rawTransactions) {
@@ -230,17 +248,21 @@ class PluggyService {
         if (structuredTxs.length > 0) {
           const apiUrl = window.db.getApiUrl();
           if (apiUrl) {
-            await fetch(`${apiUrl}/transactions/batch`, {
+            const batchResp = await fetch(`${apiUrl}/transactions/batch`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ transactions: structuredTxs })
             });
+            if (batchResp.ok) {
+              const bData = await batchResp.json();
+              totalImported += (bData.count !== undefined ? bData.count : structuredTxs.length);
+            }
           } else {
             for (const st of structuredTxs) {
               window.db.addTransaction(st);
             }
+            totalImported += structuredTxs.length;
           }
-          totalImported += structuredTxs.length;
         }
       }
 
