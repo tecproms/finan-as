@@ -129,9 +129,9 @@ class FinanceModule {
 
       const dateA = a.date || '';
       const dateB = b.date || '';
-      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      if (dateA !== dateB) return dateB.localeCompare(dateA);
       if (a.status !== b.status) return a.status === 'pending' ? -1 : 1;
-      return (a.description || '').localeCompare(b.description || '');
+      return (b.id || '').localeCompare(a.id || '');
     });
   }
 

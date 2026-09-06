@@ -216,6 +216,7 @@ class PluggyService {
         }
 
         const structuredTxs = [];
+        const seenKeys = new Set();
         for (const t of rawTransactions) {
           const isExpense = t.type === 'DEBIT' || t.amount < 0;
           const type = isExpense ? 'expense' : 'income';
@@ -223,7 +224,11 @@ class PluggyService {
           if (amount === 0) continue;
 
           const dateStr = t.date ? t.date.substring(0, 10) : new Date().toISOString().substring(0, 10);
-          const desc = t.description || 'Movimentação Bancária';
+          const desc = (t.description || 'Movimentação Bancária').trim();
+
+          const dedupKey = `${dateStr}|${amount.toFixed(2)}|${type}|${desc.toLowerCase()}`;
+          if (seenKeys.has(dedupKey)) continue;
+          seenKeys.add(dedupKey);
           
           let category = t.category || (isExpense ? 'Outros' : 'Serviços');
           if (desc.toLowerCase().includes('pix') && type === 'income') category = 'Serviços';
@@ -268,6 +273,22 @@ class PluggyService {
 
       // 4. Sincroniza banco local com o servidor
       await window.db.syncWithServer();
+
+      // Calibra o saldo inicial para bater exatamente com o saldo real do banco
+      if (latestBalance !== null && window.finance) {
+        const allTx = window.db.getTransactions();
+        let totalNet = 0;
+        allTx.forEach(tx => {
+          if (tx.status === 'paid') {
+            const val = parseFloat(tx.amount) || 0;
+            if (tx.type === 'income') totalNet += val;
+            else totalNet -= val;
+          }
+        });
+        const calibratedInitial = (latestBalance - totalNet).toFixed(2);
+        window.db.setSettings({ initialBalance: calibratedInitial });
+      }
+
       if (window.app) {
         window.app.renderCurrentTab();
         window.app.updateHeaderStats();
@@ -277,7 +298,7 @@ class PluggyService {
 
       let msg = `✅ ${bankName} sincronizado com sucesso!\n\nForam importadas ${totalImported} movimentações no seu banco de dados.`;
       if (latestBalance !== null) {
-        msg += `\nSaldo atual na conta: R$ ${latestBalance.toFixed(2).replace('.', ',')}`;
+        msg += `\nSaldo real na conta: R$ ${latestBalance.toFixed(2).replace('.', ',')}`;
       }
       alert(msg);
       return { success: true, count: totalImported };

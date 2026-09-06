@@ -705,13 +705,17 @@ class App {
       );
     }
 
-    // Ordenação por vencimento: o que vence primeiro no topo, descendo cronologicamente
+    // Ordenação cronológica: transações mais recentes no topo
     list.sort((a, b) => {
+      // Contas atrasadas de meses anteriores sempre no topo com máxima prioridade
+      if (a._isOverduePrior && !b._isOverduePrior) return -1;
+      if (!a._isOverduePrior && b._isOverduePrior) return 1;
+
       const dateA = a.date || '';
       const dateB = b.date || '';
-      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      if (dateA !== dateB) return dateB.localeCompare(dateA);
       if (a.status !== b.status) return a.status === 'pending' ? -1 : 1;
-      return (a.description || '').localeCompare(b.description || '');
+      return (b.id || '').localeCompare(a.id || '');
     });
 
     const container = document.getElementById('finances-list');

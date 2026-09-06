@@ -141,10 +141,31 @@ app.post('/api/transactions/batch', async (req, res) => {
     }
 
     let insertedCount = 0;
+    const seenBatch = new Set();
+
     for (const t of items) {
-      const id = t.id || 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
       const amount = parseFloat(t.amount) || 0;
       const date = t.date || new Date().toISOString().split('T')[0];
+      const desc = (t.description || 'Lançamento').trim();
+      const type = t.type || 'expense';
+
+      // Evita duplicatas dentro do mesmo lote enviado
+      const batchKey = `${date}|${amount.toFixed(2)}|${type}|${desc.toLowerCase()}`;
+      if (seenBatch.has(batchKey)) continue;
+      seenBatch.add(batchKey);
+
+      // Verifica se já existe por external_id OU por (data + valor + tipo + descrição idêntica)
+      if (t.externalId) {
+        const checkExt = await query('SELECT id FROM transactions WHERE external_id = $1 LIMIT 1', [t.externalId]);
+        if (checkExt.rowCount > 0) continue;
+      }
+      const checkDup = await query(
+        'SELECT id FROM transactions WHERE date::text = $1 AND amount = $2 AND type = $3 AND LOWER(TRIM(description)) = LOWER(TRIM($4)) LIMIT 1',
+        [date, amount, type, desc]
+      );
+      if (checkDup.rowCount > 0) continue;
+
+      const id = t.id || 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
 
       const sql = `
         INSERT INTO transactions (
@@ -155,8 +176,8 @@ app.post('/api/transactions/batch', async (req, res) => {
       `;
       const params = [
         id,
-        t.type || 'expense',
-        t.description || 'Lançamento',
+        type,
+        desc,
         amount,
         t.category || 'Outros',
         t.paymentMethod || 'Transferência',
@@ -175,6 +196,23 @@ app.post('/api/transactions/batch', async (req, res) => {
     res.json({ success: true, count: insertedCount });
   } catch (err) {
     console.error('Erro na importação em lote:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint utilitário para deduplicação cirúrgica
+app.post('/api/transactions/deduplicate', async (req, res) => {
+  try {
+    const r = await query(`
+      DELETE FROM transactions a USING transactions b
+      WHERE a.ctid < b.ctid
+        AND a.date = b.date
+        AND a.amount = b.amount
+        AND a.type = b.type
+        AND LOWER(TRIM(a.description)) = LOWER(TRIM(b.description))
+    `);
+    res.json({ success: true, removedCount: r.rowCount });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
