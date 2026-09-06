@@ -314,10 +314,10 @@ class App {
         statusSelect.value = 'all';
       } else if (cardType === 'income') {
         typeSelect.value = 'income';
-        statusSelect.value = 'all';
+        statusSelect.value = 'pending';
       } else if (cardType === 'expense') {
         typeSelect.value = 'expense';
-        statusSelect.value = 'all';
+        statusSelect.value = 'pending';
       } else if (cardType === 'projected') {
         typeSelect.value = 'all';
         statusSelect.value = 'pending';
@@ -360,8 +360,8 @@ class App {
     const elIncomeSub = document.getElementById('dash-income-subtext');
     const elExpenseSub = document.getElementById('dash-expense-subtext');
 
-    const totalIncomePrevisto = metrics.totalIncome + (metrics.totalPendingIncome !== undefined ? metrics.totalPendingIncome : metrics.pendingIncome);
-    const totalExpensePrevisto = metrics.totalExpense + (metrics.totalPendingExpense !== undefined ? metrics.totalPendingExpense : metrics.pendingExpense);
+    const totalIncomePrevisto = metrics.totalPendingIncome !== undefined ? metrics.totalPendingIncome : metrics.pendingIncome;
+    const totalExpensePrevisto = metrics.totalPendingExpense !== undefined ? metrics.totalPendingExpense : metrics.pendingExpense;
 
     if (elEntradas) elEntradas.textContent = window.finance.formatMoney(totalIncomePrevisto);
     if (elSaidas) elSaidas.textContent = window.finance.formatMoney(totalExpensePrevisto);
@@ -369,15 +369,13 @@ class App {
 
     if (elIncomeSub) {
       if (metrics.overduePendingIncome > 0) {
-        elIncomeSub.innerHTML = `Mês: ${window.finance.formatMoney(metrics.pendingIncome)} <span class="text-amber-400 font-bold">(+ ${window.finance.formatMoney(metrics.overduePendingIncome)} atrasadas)</span>`;
-      } else if (metrics.pendingIncome > 0 && metrics.totalIncome > 0) {
-        elIncomeSub.innerHTML = `Recebido: <span class="text-emerald-400 font-semibold">${window.finance.formatMoney(metrics.totalIncome)}</span> | Pendente: <span class="text-slate-300 font-semibold">${window.finance.formatMoney(metrics.pendingIncome)}</span>`;
-      } else if (metrics.pendingIncome > 0) {
-        elIncomeSub.innerHTML = `A receber: <span class="text-emerald-400 font-semibold">${window.finance.formatMoney(metrics.pendingIncome)}</span>`;
+        elIncomeSub.innerHTML = `Pendente mês: ${window.finance.formatMoney(metrics.pendingIncome)} <span class="text-amber-400 font-bold">(+ ${window.finance.formatMoney(metrics.overduePendingIncome)} atrasadas)</span>`;
       } else if (metrics.totalIncome > 0) {
-        elIncomeSub.innerHTML = `Recebido: <span class="text-emerald-400 font-semibold">${window.finance.formatMoney(metrics.totalIncome)}</span> (100%)`;
+        elIncomeSub.innerHTML = `Já baixado: <span class="text-emerald-400 font-semibold">${window.finance.formatMoney(metrics.totalIncome)}</span>`;
+      } else if (totalIncomePrevisto > 0) {
+        elIncomeSub.innerHTML = `A receber: <span class="text-emerald-400 font-semibold">${window.finance.formatMoney(totalIncomePrevisto)}</span>`;
       } else {
-        elIncomeSub.textContent = 'Nenhuma entrada no mês';
+        elIncomeSub.textContent = 'Nenhuma entrada pendente';
       }
     }
 
@@ -385,17 +383,13 @@ class App {
 
     if (elExpenseSub) {
       if (metrics.overduePendingExpense > 0 && isOverdueIncluded) {
-        elExpenseSub.innerHTML = `A pagar: ${window.finance.formatMoney(metrics.pendingExpense)} <span class="text-rose-400 font-bold">(+ ${window.finance.formatMoney(metrics.overduePendingExpense)} em atraso)</span>`;
+        elExpenseSub.innerHTML = `Pendente mês: ${window.finance.formatMoney(metrics.pendingExpense)} <span class="text-rose-400 font-bold">(+ ${window.finance.formatMoney(metrics.overduePendingExpense)} em atraso)</span>`;
       } else if (metrics.overduePendingExpense > 0 && !isOverdueIncluded) {
-        elExpenseSub.innerHTML = `A pagar: ${window.finance.formatMoney(metrics.pendingExpense)} <span class="text-slate-400 text-[10px]">(${window.finance.formatMoney(metrics.overduePendingExpense)} atraso não somados)</span>`;
-      } else if (metrics.pendingExpense > 0 && metrics.totalExpense > 0) {
-        elExpenseSub.innerHTML = `Pago: <span class="text-rose-400 font-semibold">${window.finance.formatMoney(metrics.totalExpense)}</span> | Pendente: <span class="text-slate-300 font-semibold">${window.finance.formatMoney(metrics.pendingExpense)}</span>`;
-      } else if (metrics.pendingExpense > 0) {
-        elExpenseSub.innerHTML = `A pagar: <span class="text-rose-400 font-semibold">${window.finance.formatMoney(metrics.pendingExpense)}</span>`;
+        elExpenseSub.innerHTML = `Pendente mês: ${window.finance.formatMoney(metrics.pendingExpense)} <span class="text-slate-400 text-[10px]">(${window.finance.formatMoney(metrics.overduePendingExpense)} atraso não somados)</span>`;
       } else if (metrics.totalExpense > 0) {
-        elExpenseSub.innerHTML = `Pago: <span class="text-rose-400 font-semibold">${window.finance.formatMoney(metrics.totalExpense)}</span> (100%)`;
+        elExpenseSub.innerHTML = `Já baixado: <span class="text-rose-400 font-semibold">${window.finance.formatMoney(metrics.totalExpense)}</span>`;
       } else {
-        elExpenseSub.textContent = 'Nenhuma saída no mês';
+        elExpenseSub.textContent = 'Nenhuma saída pendente';
       }
     }
 

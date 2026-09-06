@@ -206,9 +206,9 @@ class FinanceModule {
     const totalPendingIncome = pendingIncome + (includeOverdue ? overduePendingIncome : 0);
     const totalPendingExpense = pendingExpense + (includeOverdue ? overduePendingExpense : 0);
 
-    // Volume total previsto (realizado + pendente do mês + contas atrasadas se ativo)
-    const totalExpectedIncome = totalIncome + totalPendingIncome;
-    const totalExpectedExpense = totalExpense + totalPendingExpense;
+    // Volume previsto (apenas o que está pendente de entrada/saída, sem somar o que já foi baixado)
+    const totalExpectedIncome = totalPendingIncome;
+    const totalExpectedExpense = totalPendingExpense;
 
     // Saldo previsto considera o saldo atual + entradas pendentes - contas a pagar
     const projectedBalance = currentBalance + totalPendingIncome - totalPendingExpense;
