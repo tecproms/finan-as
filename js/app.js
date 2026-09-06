@@ -2329,19 +2329,17 @@ class App {
     }
   }
 
-  // Modal QR Code para Conectar o Celular
+  // Modal QR Code para Baixar o App Nativo Android
   openMobileQRModal() {
     const modal = document.getElementById('modal-qrcode');
     if (!modal) return;
 
-    // Constrói URL acessível para outros dispositivos na rede Wi-Fi
-    const port = window.location.port || '8080';
-    let host = window.location.hostname;
-    // Se estiver no computador (localhost ou 127.0.0.1), substitui pelo IP da rede local
-    if (!host || host === 'localhost' || host === '127.0.0.1') {
-      host = '192.168.1.73';
+    // Constrói URL direta para download do APK instalável
+    let base = window.location.origin;
+    if (!base || base.includes('localhost') || base.includes('127.0.0.1')) {
+      base = 'https://finan.bascully.com.br';
     }
-    const targetUrl = `http://${host}:${port}/`;
+    const targetUrl = `${base}/FinControl-Pro.apk`;
 
     const urlDisplay = document.getElementById('qr-url-text');
     if (urlDisplay) urlDisplay.textContent = targetUrl;
@@ -2359,6 +2357,7 @@ class App {
     }
 
     modal.classList.remove('hidden');
+    if (window.lucide) window.lucide.createIcons();
   }
 
   closeMobileQRModal() {
