@@ -554,7 +554,7 @@ class App {
     
     if (elThisExpense) {
       if (radar.thisWeek.overdueExpense > 0) {
-        elThisExpense.innerHTML = `<span>${window.finance.formatMoney(radar.thisWeek.totalExpense)}</span> <span class="text-[10px] text-rose-400 font-bold block">(+ ${window.finance.formatMoney(radar.thisWeek.overdueExpense)} atraso)</span>`;
+        elThisExpense.innerHTML = `<span>${window.finance.formatMoney(radar.thisWeek.totalExpense)}</span> <span class="text-[10px] text-rose-400 font-bold block">(+ ${window.finance.formatMoney(radar.thisWeek.overdueExpense)} semana passada)</span>`;
       } else {
         elThisExpense.textContent = window.finance.formatMoney(radar.thisWeek.totalExpense);
       }
@@ -571,7 +571,7 @@ class App {
     if (elThisStatus) {
       const netVal = radar.thisWeek.overdueExpense > 0 ? radar.thisWeek.netWithOverdue : radar.thisWeek.net;
       if (radar.thisWeek.overdueExpense > 0 && netVal < 0) {
-        elThisStatus.innerHTML = `<span class="text-rose-400 font-bold">Falta: -${window.finance.formatMoney(Math.abs(netVal))} (com atrasos)</span>`;
+        elThisStatus.innerHTML = `<span class="text-rose-400 font-bold">Falta: -${window.finance.formatMoney(Math.abs(netVal))} (com pendências da semana passada)</span>`;
       } else if (netVal > 0) {
         elThisStatus.innerHTML = `<span class="text-emerald-400 font-bold">${radar.thisWeek.overdueExpense > 0 ? 'Sobra Real:' : 'Sobra:'} +${window.finance.formatMoney(netVal)}</span>`;
       } else if (netVal < 0) {
