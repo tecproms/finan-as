@@ -1435,68 +1435,61 @@
           <button type="button" id="btn-request-notifications" onclick="window.notifications.requestPermission()" class="w-full sm:w-auto flex-1 py-2 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs border border-amber-500/40 flex items-center justify-center gap-1.5 transition-colors">
             <i data-lucide="bell" class="w-3.5 h-3.5 text-amber-400"></i> Permitir Notificações
           </button>
-          <button type="button" onclick="window.notifications.testNotification()" class="w-full sm:w-auto py-2 px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold text-xs border border-slate-600 flex items-center justify-center gap-1.5 transition-colors" title="Disparar uma notifica��o de teste agora mesmo">
-            <i data-lucide="send" class="w-3.5 h-3.5 text-emerald-400"></i> Testar Notifica��o Agora
+          <button type="button" onclick="window.notifications.testNotification()" class="w-full sm:w-auto py-2 px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold text-xs border border-slate-600 flex items-center justify-center gap-1.5 transition-colors" title="Disparar uma notificação de teste agora mesmo">
+            <i data-lucide="send" class="w-3.5 h-3.5 text-emerald-400"></i> Testar Notificação Agora
           </button>
         </div>
       </div>
 
-      <!-- Integração WhatsApp & Evolution API -->
-      <div id="settings-evolution-section" class="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-3.5">
+      <!-- Integração WhatsApp & Whaticket -->
+      <div id="settings-whaticket-section" class="p-4 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-3.5">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
             <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-              <i data-lucide="message-square" class="w-4 h-4 text-emerald-400"></i> WhatsApp & Assistente IA (Evolution API)
+              <i data-lucide="message-square" class="w-4 h-4 text-emerald-400"></i> WhatsApp & Notificações (Whaticket)
             </span>
           </div>
-          <span id="evolution-status-badge" class="text-[11px] font-semibold px-2.5 py-0.5 rounded-lg bg-slate-700 text-slate-300">
-            ? Desconectado
+          <span id="whaticket-status-badge" class="text-[11px] font-semibold px-2.5 py-0.5 rounded-lg bg-slate-700 text-slate-300">
+            ⚪ Não Configurado
           </span>
         </div>
 
         <p class="text-xs text-slate-300 leading-relaxed">
-          Conecte sua instância da <strong>Evolution API</strong> para receber resumos diários de contas no WhatsApp, lembretes de agenda e interagir com o assistente por mensagens!
+          Envie resumos diários de contas no WhatsApp e lembretes de agenda integrando com a API do <strong>Whaticket</strong>.
         </p>
 
         <div class="space-y-2.5 pt-1">
-          <!-- URL da Evolution API -->
+          <!-- URL do Whaticket -->
           <div class="space-y-1">
-            <label class="text-[11px] font-medium text-slate-300 block">URL da Evolution API</label>
-            <input type="text" id="setting-evolution-url" placeholder="https://api.bascully.com.br" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono" value="https://api.bascully.com.br" />
-            <p class="text-[10px] text-slate-400">endereço da Evolution API (ex: https://api.bascully.com.br ou IP da sua VPS).</p>
+            <label class="text-[11px] font-medium text-slate-300 block">URL da API Whaticket</label>
+            <input type="text" id="setting-whaticket-url" placeholder="https://api-whaticket.bascully.com.br" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono" value="https://api-whaticket.bascully.com.br" />
+            <p class="text-[10px] text-slate-400">Endereço base do Whaticket (padrão: https://api-whaticket.bascully.com.br).</p>
           </div>
 
-          <!-- API Key Global / Instância -->
+          <!-- Token de Envio do Whaticket -->
           <div class="space-y-1">
-            <label class="text-[11px] font-medium text-slate-300 block">API Key (AUTHENTICATION_API_KEY)</label>
-            <input type="password" id="setting-evolution-apikey" placeholder="MudeParaUmaSenhaForte123" value="MudeParaUmaSenhaForte123" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono" />
+            <label class="text-[11px] font-medium text-slate-300 block">Token de Envio (Bearer Token)</label>
+            <input type="password" id="setting-whaticket-token" placeholder="Cole aqui o Token da Conexão do Whaticket" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono" />
+            <p class="text-[10px] text-emerald-400/80">💡 No Whaticket, acesse: <strong>Conexões</strong> &gt; clique em <strong>Editar</strong> na sua conexão &gt; copie o <strong>Token</strong>.</p>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <!-- Nome da Instância -->
-            <div class="space-y-1">
-              <label class="text-[11px] font-medium text-slate-300 block">Nome da Instância</label>
-              <input type="text" id="setting-evolution-instance" value="financeiro5" placeholder="financeiro5" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono" />
-            </div>
-
-            <!-- Telefone do Usuário -->
-            <div class="space-y-1">
-              <label class="text-[11px] font-medium text-slate-300 block">Seu WhatsApp (com DDD)</label>
-              <input type="text" id="setting-evolution-phone" value="5511943137268" placeholder="Ex: 5511943137268" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono" />
-            </div>
+          <!-- Telefone do Usuário -->
+          <div class="space-y-1">
+            <label class="text-[11px] font-medium text-slate-300 block">Seu WhatsApp de Notificação (com DDD)</label>
+            <input type="text" id="setting-whaticket-phone" value="5511943137268" placeholder="Ex: 5511943137268" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono" />
+            <p class="text-[10px] text-slate-400">Número que receberá os alertas (Código do país + DDD + Número sem espaços ou traços).</p>
           </div>
-          <p class="text-[10px] text-emerald-400/80">?? Apenas este n�mero ter� permissão para consultar saldos e lan�ar despesas via WhatsApp.</p>
 
           <!-- Toggles -->
           <div class="space-y-2 pt-1">
             <!-- Resumo diário WhatsApp -->
             <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
               <div>
-                <span class="text-xs font-medium text-slate-200 block">Resumo diário no WhatsApp (08:00)</span>
+                <span class="text-xs font-medium text-slate-200 block">Resumo Diário no WhatsApp (08:00)</span>
                 <span class="text-[11px] text-slate-400">Envia resumo matinal das contas a pagar, a receber e agenda</span>
               </div>
               <label class="cursor-pointer">
-                <input type="checkbox" id="setting-evolution-summary" class="sr-only peer" checked>
+                <input type="checkbox" id="setting-whaticket-summary" class="sr-only peer" checked>
                 <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 relative"></div>
               </label>
             </div>
@@ -1508,37 +1501,16 @@
                 <span class="text-[11px] text-slate-400">Alerta 15 minutos antes de compromissos marcados</span>
               </div>
               <label class="cursor-pointer">
-                <input type="checkbox" id="setting-evolution-appointments" class="sr-only peer" checked>
-                <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 relative"></div>
-              </label>
-            </div>
-
-            <!-- Auto Gravação via Chat WhatsApp -->
-            <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-              <div>
-                <span class="text-xs font-medium text-slate-200 block">Lançamento Automático via Chat</span>
-                <span class="text-[11px] text-slate-400">Salva gastos e compromissos enviados no WhatsApp imediatamente</span>
-              </div>
-              <label class="cursor-pointer">
-                <input type="checkbox" id="setting-evolution-auto-execute" class="sr-only peer" checked>
+                <input type="checkbox" id="setting-whaticket-appointments" class="sr-only peer" checked>
                 <div class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500 relative"></div>
               </label>
             </div>
           </div>
 
-          <!-- Ações da Conexão Evolution -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
-            <button type="button" id="btn-evolution-connect" onclick="app.connectEvolutionWhatsApp()" class="py-2 px-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1.5 transition-colors">
-              <i data-lucide="qr-code" class="w-3.5 h-3.5"></i> Conectar / QR
-            </button>
-            <button type="button" id="btn-evolution-check" onclick="app.checkEvolutionStatus()" class="py-2 px-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold text-xs border border-slate-600 flex items-center justify-center gap-1.5 transition-colors">
-              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Status
-            </button>
-            <button type="button" id="btn-evolution-test" onclick="app.testEvolutionMessage()" class="py-2 px-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-semibold text-xs border border-emerald-500/30 flex items-center justify-center gap-1.5 transition-colors">
-              <i data-lucide="send" class="w-3.5 h-3.5"></i> Testar Envio
-            </button>
-            <button type="button" id="btn-evolution-logout" onclick="app.logoutEvolutionWhatsApp()" class="py-2 px-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 font-semibold text-xs border border-rose-500/30 flex items-center justify-center gap-1.5 transition-colors">
-              <i data-lucide="power" class="w-3.5 h-3.5"></i> Desconectar
+          <!-- Ação: Testar Envio Whaticket -->
+          <div class="pt-2">
+            <button type="button" id="btn-whaticket-test" onclick="app.testWhaticketMessage()" class="w-full py-2.5 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-xs border border-emerald-500/30 flex items-center justify-center gap-1.5 transition-colors">
+              <i data-lucide="send" class="w-3.5 h-3.5"></i> Enviar Mensagem de Teste no WhatsApp
             </button>
           </div>
         </div>
@@ -1769,49 +1741,6 @@
     </div>
   </div>
 
-  <!-- ==================== MODAL QR CODE EVOLUTION API (WHATSAPP) ==================== -->
-  <div id="modal-evolution-qrcode" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 hidden">
-    <div class="modal-sheet w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4 text-center">
-      <div class="flex items-center justify-between pb-2 border-b border-slate-800">
-        <div class="flex items-center gap-2">
-          <div class="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
-            <i data-lucide="qr-code" class="w-4 h-4"></i>
-          </div>
-          <h3 class="font-bold text-xs text-white">Conectar WhatsApp Evolution</h3>
-        </div>
-        <button onclick="app.closeEvolutionQrModal()" class="text-slate-400 hover:text-white p-1">
-          <i data-lucide="x" class="w-4 h-4"></i>
-        </button>
-      </div>
-
-      <p class="text-xs text-slate-300">
-        Abra o WhatsApp no celular > <strong>Aparelhos Conectados</strong> > <strong>Conectar um aparelho</strong> e aponte a c�mera para o QR Code abaixo:
-      </p>
-
-      <div id="evolution-qrcode-box" class="flex items-center justify-center p-3 bg-white rounded-2xl mx-auto w-64 h-64 border-2 border-emerald-500/40 shadow-inner">
-        <div class="text-center p-2">
-          <i data-lucide="loader-2" class="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-2"></i>
-          <span class="text-xs text-slate-700 font-medium block">Gerando QR Code...</span>
-        </div>
-      </div>
-
-      <div id="evolution-pairing-code-box" class="hidden p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-mono text-emerald-400 font-bold tracking-wider"></div>
-
-      <div class="flex items-center justify-between px-1">
-        <span id="evolution-qrcode-status" class="text-[11px] text-slate-400">
-          Aguardando leitura...
-        </span>
-        <button type="button" onclick="app.connectEvolutionWhatsApp()" class="text-[11px] text-emerald-400 hover:underline flex items-center gap-1">
-          <i data-lucide="refresh-cw" class="w-3 h-3"></i> Atualizar QR
-        </button>
-      </div>
-
-      <button type="button" onclick="app.closeEvolutionQrModal()" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold">
-        Fechar Janela
-      </button>
-    </div>
-  </div>
-
   <!-- ==================== MODAL DE ASSINATURAS & RECORRÊNCIAS ==================== -->
   <div id="modal-recurring-subscriptions" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 hidden">
     <div class="modal-sheet w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
@@ -1853,9 +1782,9 @@
   <script src="js/auth.js?v=6.2"></script>
   <script src="js/bank-import.js?v=6.2"></script>
   <script src="js/pluggy-service.js?v=8.6"></script>
-  <script src="js/evolution-service.js?v=6.3"></script>
-  <script src="js/notifications.js?v=6.2"></script>
+  <script src="js/whaticket-service.js?v=1.0"></script>
+  <script src="js/notifications.js?v=6.3"></script>
   <script src="js/asaas-service.js"></script>
-  <script src="js/app.js?v=7.5"></script>
+  <script src="js/app.js?v=7.6"></script>
 </body>
 </html>

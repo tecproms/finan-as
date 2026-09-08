@@ -475,6 +475,7 @@ app.get('/api/settings', async (req, res) => {
     if (r.pluggy_last_sync) resp.pluggyLastSync = r.pluggy_last_sync;
     if (r.initial_balance !== undefined && r.initial_balance !== null) resp.initialBalance = r.initial_balance;
     if (r.evolution_settings) resp.evolution = r.evolution_settings;
+    if (r.whaticket_settings) resp.whaticket = r.whaticket_settings;
     res.json(resp);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -494,6 +495,7 @@ app.post('/api/settings', async (req, res) => {
         ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS pluggy_client_secret TEXT;
         ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS initial_balance NUMERIC DEFAULT 0;
         ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS evolution_settings JSONB;
+        ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS whaticket_settings JSONB;
       EXCEPTION WHEN others THEN NULL;
       END $$;
     `).catch(() => {});
@@ -503,8 +505,8 @@ app.post('/api/settings', async (req, res) => {
         id, user_name, groq_api_key, groq_model, autolock_minutes, 
         mercado_pago_token, mercado_pago_auto_sync, inter_settings,
         auth_data, pluggy_items, pluggy_client_id, pluggy_client_secret, initial_balance,
-        evolution_settings, updated_at
-      ) VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, CURRENT_TIMESTAMP)
+        evolution_settings, whaticket_settings, updated_at
+      ) VALUES ('default', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP)
       ON CONFLICT (id) DO UPDATE SET
         user_name = COALESCE(EXCLUDED.user_name, app_settings.user_name),
         groq_api_key = COALESCE(EXCLUDED.groq_api_key, app_settings.groq_api_key),
@@ -519,6 +521,7 @@ app.post('/api/settings', async (req, res) => {
         pluggy_client_secret = COALESCE(EXCLUDED.pluggy_client_secret, app_settings.pluggy_client_secret),
         initial_balance = COALESCE(EXCLUDED.initial_balance, app_settings.initial_balance),
         evolution_settings = COALESCE(EXCLUDED.evolution_settings, app_settings.evolution_settings),
+        whaticket_settings = COALESCE(EXCLUDED.whaticket_settings, app_settings.whaticket_settings),
         updated_at = CURRENT_TIMESTAMP
       RETURNING *
     `;
@@ -535,7 +538,8 @@ app.post('/api/settings', async (req, res) => {
       s.pluggyClientId || null,
       s.pluggyClientSecret || null,
       s.initialBalance !== undefined ? s.initialBalance : null,
-      s.evolution ? JSON.stringify(s.evolution) : (s.evolution_settings ? JSON.stringify(s.evolution_settings) : null)
+      s.evolution ? JSON.stringify(s.evolution) : (s.evolution_settings ? JSON.stringify(s.evolution_settings) : null),
+      s.whaticket ? JSON.stringify(s.whaticket) : (s.whaticket_settings ? JSON.stringify(s.whaticket_settings) : null)
     ];
     await query(sql, params);
     res.json({ success: true, message: 'Configurações salvas no PostgreSQL com sucesso!' });
@@ -1241,7 +1245,69 @@ app.post('/api/pluggy/webhook', async (req, res) => {
 });
 
 // ==========================================
-// 8. PROXY & WEBHOOK EVOLUTION API (WHATSAPP)
+// 8. WHATICKET API (WHATSAPP)
+// ==========================================
+
+// Envio de mensagens de texto via Whaticket
+app.post('/api/whaticket/send', async (req, res) => {
+  try {
+    const { number, body, targetUrl, token } = req.body;
+
+    let sendUrl = targetUrl || 'https://api-whaticket.bascully.com.br/api/messages/send';
+    let sendToken = token;
+
+    if (!sendToken) {
+      const sRes = await query('SELECT whaticket_settings FROM app_settings WHERE id = $1', ['default']).catch(() => ({ rows: [] }));
+      const wSettings = (sRes.rows[0] && sRes.rows[0].whaticket_settings) || {};
+      sendToken = wSettings.token;
+      if (wSettings.apiUrl) {
+        sendUrl = `${wSettings.apiUrl.replace(/\/+$/, '')}/api/messages/send`;
+      }
+    }
+
+    if (!sendToken) {
+      return res.status(400).json({ success: false, error: 'Token do Whaticket não informado nem configurado.' });
+    }
+
+    if (!number || !body) {
+      return res.status(400).json({ success: false, error: 'Campos "number" e "body" são obrigatórios.' });
+    }
+
+    const cleanNum = String(number).replace(/\D/g, '');
+
+    const response = await fetch(sendUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sendToken.trim()}`
+      },
+      body: JSON.stringify({
+        number: cleanNum,
+        body: body
+      })
+    });
+
+    const contentType = response.headers.get('content-type') || '';
+    let data;
+    if (contentType.includes('application/json')) {
+      data = await response.json().catch(() => ({}));
+    } else {
+      data = await response.text().catch(() => '');
+    }
+
+    if (response.ok) {
+      res.json({ success: true, status: response.status, data: data });
+    } else {
+      const errMsg = (typeof data === 'object' ? (data?.message || data?.error) : data) || 'Erro retornado pela API do Whaticket';
+      res.status(response.status).json({ success: false, status: response.status, data: data, error: errMsg });
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// 8.1. PROXY & WEBHOOK EVOLUTION API (WHATSAPP - LEGADO)
 // ==========================================
 
 // Proxy HTTP para Evolution API (evita bloqueios de CORS e SSL no navegador)

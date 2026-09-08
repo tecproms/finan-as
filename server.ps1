@@ -183,6 +183,46 @@ while ($true) {
                 $stream.Write($bytes, 0, $bytes.Length)
                 $stream.Flush()
                 $client.Close()
+            # --- ENDPOINT SERVER-SIDE WHATICKET SEND ---
+            if ($urlPath -eq "api/whaticket/send") {
+                try {
+                    $bodyIdx = $reqText.IndexOf("`r`n`r`n")
+                    $jsonBody = if ($bodyIdx -ge 0) { $reqText.Substring($bodyIdx + 4) } else { "{}" }
+                    $reqObj = $jsonBody | ConvertFrom-Json
+                    
+                    $wTargetUrl = if ($reqObj.targetUrl) { $reqObj.targetUrl } else { "https://api-whaticket.bascully.com.br/api/messages/send" }
+                    $wToken = $reqObj.token
+                    $wNumber = ($reqObj.number -replace '\D', '')
+                    $wBody = $reqObj.body
+                    
+                    $wHeaders = @{ 
+                        "Authorization" = "Bearer $wToken"
+                        "Content-Type" = "application/json"
+                    }
+                    $wPayload = @{
+                        number = $wNumber
+                        body = $wBody
+                    } | ConvertTo-Json -Compress
+                    
+                    $res = Invoke-RestMethod -Uri $wTargetUrl -Method POST -Headers $wHeaders -ContentType "application/json" -Body $wPayload -TimeoutSec 30 -DisableKeepAlive
+                    $respJson = @{ success = $true; data = $res } | ConvertTo-Json -Depth 5
+                } catch {
+                    $errMsg = $_.Exception.Message
+                    if ($_.Exception.Response) {
+                        try {
+                            $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                            $errMsg = $reader.ReadToEnd()
+                        } catch {}
+                    }
+                    $respJson = @{ success = $false; error = $errMsg } | ConvertTo-Json
+                }
+                $bytes = [System.Text.Encoding]::UTF8.GetBytes($respJson)
+                $respHeader = "HTTP/1.1 200 OK`r`nContent-Type: application/json; charset=utf-8`r`nAccess-Control-Allow-Origin: *`r`nAccess-Control-Allow-Headers: *`r`nContent-Length: $($bytes.Length)`r`nConnection: close`r`n`r`n"
+                $hBytes = [System.Text.Encoding]::ASCII.GetBytes($respHeader)
+                $stream.Write($hBytes, 0, $hBytes.Length)
+                $stream.Write($bytes, 0, $bytes.Length)
+                $stream.Flush()
+                $client.Close()
                 continue
             }
 

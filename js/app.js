@@ -1682,26 +1682,23 @@ class App {
       this.updateInterStatusUI(interCfg);
     }
 
-    // Configurações Evolution API (WhatsApp)
-    if (window.evolutionService) {
-      const evoCfg = window.evolutionService.getConfig();
-      const evoUrl = document.getElementById('setting-evolution-url');
-      const evoKey = document.getElementById('setting-evolution-apikey');
-      const evoInst = document.getElementById('setting-evolution-instance');
-      const evoPhone = document.getElementById('setting-evolution-phone');
-      const evoSummary = document.getElementById('setting-evolution-summary');
-      const evoApps = document.getElementById('setting-evolution-appointments');
-      const evoAuto = document.getElementById('setting-evolution-auto-execute');
+    // Configurações Whaticket (WhatsApp)
+    const waService = window.whaticketService || window.evolutionService;
+    if (waService) {
+      const wCfg = waService.getConfig();
+      const wUrl = document.getElementById('setting-whaticket-url');
+      const wToken = document.getElementById('setting-whaticket-token');
+      const wPhone = document.getElementById('setting-whaticket-phone');
+      const wSummary = document.getElementById('setting-whaticket-summary');
+      const wApps = document.getElementById('setting-whaticket-appointments');
 
-      if (evoUrl) evoUrl.value = evoCfg.apiUrl || 'https://api.bascully.com.br';
-      if (evoKey) evoKey.value = evoCfg.apiKey || 'MudeParaUmaSenhaForte123';
-      if (evoInst) evoInst.value = evoCfg.instanceName || 'financeiro5';
-      if (evoPhone) evoPhone.value = evoCfg.userPhone || '5511943137268';
-      if (evoSummary) evoSummary.checked = evoCfg.notifySummary !== false;
-      if (evoApps) evoApps.checked = evoCfg.notifyAppointments !== false;
-      if (evoAuto) evoAuto.checked = evoCfg.autoExecuteActions !== false;
+      if (wUrl) wUrl.value = wCfg.apiUrl || 'https://api-whaticket.bascully.com.br';
+      if (wToken) wToken.value = wCfg.token || '';
+      if (wPhone) wPhone.value = wCfg.userPhone || '5511943137268';
+      if (wSummary) wSummary.checked = wCfg.notifySummary !== false;
+      if (wApps) wApps.checked = wCfg.notifyAppointments !== false;
 
-      this.updateEvolutionStatusUI();
+      this.updateWhaticketStatusUI();
     }
   }
 
@@ -2010,26 +2007,23 @@ class App {
       this.updateInterStatusUI();
     }
 
-    // Salva configurações Evolution API (WhatsApp)
-    if (window.evolutionService) {
-      const evoUrl = document.getElementById('setting-evolution-url')?.value.trim() || 'https://api.bascully.com.br';
-      const evoKey = document.getElementById('setting-evolution-apikey')?.value.trim() || 'MudeParaUmaSenhaForte123';
-      const evoInst = document.getElementById('setting-evolution-instance')?.value.trim() || 'financeiro5';
-      const evoPhone = document.getElementById('setting-evolution-phone')?.value.trim() || '5511943137268';
-      const evoSummary = document.getElementById('setting-evolution-summary')?.checked !== false;
-      const evoApps = document.getElementById('setting-evolution-appointments')?.checked !== false;
-      const evoAuto = document.getElementById('setting-evolution-auto-execute')?.checked !== false;
+    // Salva configurações Whaticket (WhatsApp)
+    const waService = window.whaticketService || window.evolutionService;
+    if (waService) {
+      const wUrl = document.getElementById('setting-whaticket-url')?.value.trim() || 'https://api-whaticket.bascully.com.br';
+      const wToken = document.getElementById('setting-whaticket-token')?.value.trim() || '';
+      const wPhone = document.getElementById('setting-whaticket-phone')?.value.trim() || '5511943137268';
+      const wSummary = document.getElementById('setting-whaticket-summary')?.checked !== false;
+      const wApps = document.getElementById('setting-whaticket-appointments')?.checked !== false;
 
-      window.evolutionService.saveConfig({
-        apiUrl: evoUrl,
-        apiKey: evoKey,
-        instanceName: evoInst,
-        userPhone: evoPhone,
-        notifySummary: evoSummary,
-        notifyAppointments: evoApps,
-        autoExecuteActions: evoAuto
+      waService.saveConfig({
+        apiUrl: wUrl,
+        token: wToken,
+        userPhone: wPhone,
+        notifySummary: wSummary,
+        notifyAppointments: wApps
       });
-      this.updateEvolutionStatusUI();
+      this.updateWhaticketStatusUI();
     }
 
     this.updateGroqStatusUI(key);
@@ -2039,237 +2033,79 @@ class App {
     this.closeSettingsModal();
   }
 
-  updateEvolutionStatusUI(state = null, isConnected = null) {
-    const badge = document.getElementById('evolution-status-badge');
+  updateWhaticketStatusUI() {
+    const badge = document.getElementById('whaticket-status-badge') || document.getElementById('evolution-status-badge');
     if (!badge) return;
 
-    if (isConnected === true || state === 'open' || state === 'connected') {
-      badge.textContent = '🟢 WhatsApp Conectado';
+    const waService = window.whaticketService || window.evolutionService;
+    const config = waService ? waService.getConfig() : {};
+
+    if (config.token && config.token.trim().length > 5 && config.userPhone) {
+      badge.textContent = '🟢 Whaticket Configurado';
       badge.className = 'text-[11px] font-semibold px-2.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
-    } else if (state === 'connecting') {
-      badge.textContent = '🟡 Conectando...';
+    } else if (config.token && config.token.trim().length > 5) {
+      badge.textContent = '🟡 Falta WhatsApp';
       badge.className = 'text-[11px] font-semibold px-2.5 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30';
     } else {
-      const config = window.evolutionService ? window.evolutionService.getConfig() : {};
-      if (config.apiKey && config.userPhone) {
-        badge.textContent = '⚪ Pronto para Parear';
-      } else {
-        badge.textContent = '⚪ Desconectado';
-      }
+      badge.textContent = '⚪ Aguardando Token';
       badge.className = 'text-[11px] font-semibold px-2.5 py-0.5 rounded-lg bg-slate-700 text-slate-300';
     }
   }
 
-  async checkEvolutionStatus() {
-    if (!window.evolutionService) return;
-    const url = document.getElementById('setting-evolution-url')?.value.trim() || 'https://api.bascully.com.br';
-    const key = document.getElementById('setting-evolution-apikey')?.value.trim() || 'MudeParaUmaSenhaForte123';
-    const instance = document.getElementById('setting-evolution-instance')?.value.trim() || 'financeiro5';
-
-    const btn = document.getElementById('btn-evolution-check');
-    if (btn) btn.textContent = 'Verificando...';
-
-    const res = await window.evolutionService.checkConnectionState(url, key, instance);
-    this.updateEvolutionStatusUI(res.state, res.connected);
-
-    if (btn) {
-      btn.innerHTML = '<i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Status';
-      if (window.lucide) window.lucide.createIcons();
-    }
-
-    if (res.connected) {
-      alert(`🟢 Evolution API conectada com sucesso!\nInstância: ${instance || 'financeiro5'}\nEstado: Aberta / Conectada ao WhatsApp`);
-    } else if (res.state === 'connecting') {
-      alert(`🟡 Instância conectando... Abra o QR Code para parear.`);
-    } else if (res.state === 'not_found') {
-      alert(`⚠️ Instância "${instance}" ainda não existe na Evolution API. Clique em "Conectar / QR" para criá-la e parear.`);
-    } else {
-      alert(`⚪ Status da Evolution API: ${res.state || 'Desconectado'}\n${res.message || ''}`);
-    }
+  // Alias para compatibilidade
+  updateEvolutionStatusUI(state = null, isConnected = null) {
+    this.updateWhaticketStatusUI();
   }
 
-  async connectEvolutionWhatsApp() {
-    if (!window.evolutionService) return;
-    const url = document.getElementById('setting-evolution-url')?.value.trim() || 'https://api.bascully.com.br';
-    const key = document.getElementById('setting-evolution-apikey')?.value.trim() || 'MudeParaUmaSenhaForte123';
-    const instance = document.getElementById('setting-evolution-instance')?.value.trim() || 'financeiro5';
-    const phone = document.getElementById('setting-evolution-phone')?.value.trim() || '5511943137268';
+  async testWhaticketMessage() {
+    const waService = window.whaticketService || window.evolutionService;
+    if (!waService) return;
 
-    // Salva temporariamente os inputs
-    window.evolutionService.saveConfig({
-      apiUrl: url,
-      apiKey: key,
-      instanceName: instance,
-      userPhone: phone
-    });
+    const url = document.getElementById('setting-whaticket-url')?.value.trim() || 'https://api-whaticket.bascully.com.br';
+    const token = document.getElementById('setting-whaticket-token')?.value.trim() || '';
+    const phone = document.getElementById('setting-whaticket-phone')?.value.trim() || '5511943137268';
 
-    const modal = document.getElementById('modal-evolution-qrcode');
-    const box = document.getElementById('evolution-qrcode-box');
-    const statusTxt = document.getElementById('evolution-qrcode-status');
-    const pairingBox = document.getElementById('evolution-pairing-code-box');
-
-    if (modal) modal.classList.remove('hidden');
-    if (box) {
-      box.innerHTML = `
-        <div class="text-center p-2">
-          <div class="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-          <span class="text-xs text-slate-700 font-medium block">Obtendo QR Code da Evolution API...</span>
-        </div>`;
-    }
-    if (statusTxt) statusTxt.textContent = 'Carregando...';
-    if (pairingBox) pairingBox.classList.add('hidden');
-
-    const qrResult = await window.evolutionService.fetchQrCode(url, key, instance);
-
-    if (!qrResult.success) {
-      if (box) {
-        box.innerHTML = `
-          <div class="text-center p-2 text-rose-600">
-            <span class="text-xs font-bold block mb-1">Falha ao obter QR Code</span>
-            <span class="text-[11px] block leading-tight text-slate-600">${qrResult.message || 'Verifique se a Evolution API está rodando e a chave API está correta.'}</span>
-          </div>`;
-      }
-      if (statusTxt) statusTxt.textContent = 'Erro ao conectar';
+    if (!token) {
+      alert('⚠️ Por favor, informe o Token de envio do Whaticket antes de testar.\n\nVocê encontra esse token no Whaticket em: Conexões > Editar Conexão > Token.');
+      document.getElementById('setting-whaticket-token')?.focus();
       return;
     }
-
-    // Se já estava conectado
-    if (qrResult.raw && (qrResult.raw.state === 'open' || qrResult.raw.status === 'open')) {
-      if (box) {
-        box.innerHTML = `
-          <div class="text-center p-4 text-emerald-600">
-            <span class="text-3xl block mb-2">🟢</span>
-            <span class="text-xs font-bold block">WhatsApp Já Conectado!</span>
-          </div>`;
-      }
-      if (statusTxt) statusTxt.textContent = 'Instância conectada';
-      this.updateEvolutionStatusUI('open', true);
-      return;
-    }
-
-    // Renderiza imagem do QR Code
-    if (qrResult.base64) {
-      let src = qrResult.base64;
-      if (!src.startsWith('data:image')) {
-        src = `data:image/png;base64,${src}`;
-      }
-      if (box) {
-        box.innerHTML = `<img src="${src}" alt="QR Code WhatsApp" class="w-full h-full object-contain rounded-xl" />`;
-      }
-      if (statusTxt) statusTxt.textContent = 'Aguardando leitura do QR Code...';
-    } else if (qrResult.code && window.QRious) {
-      if (box) {
-        box.innerHTML = `<canvas id="evolution-canvas-qr" class="w-full h-full"></canvas>`;
-        new window.QRious({
-          element: document.getElementById('evolution-canvas-qr'),
-          value: qrResult.code,
-          size: 240
-        });
-      }
-      if (statusTxt) statusTxt.textContent = 'Aguardando leitura do QR Code...';
-    }
-
-    // Se tiver código de pareamento
-    if (qrResult.pairingCode && pairingBox) {
-      pairingBox.textContent = `Código de Pareamento: ${qrResult.pairingCode}`;
-      pairingBox.classList.remove('hidden');
-    }
-
-    // Inicia verificação periódica (polling) de conexão a cada 3 segundos
-    if (this.evolutionPollingTimer) clearInterval(this.evolutionPollingTimer);
-    this.evolutionPollingTimer = setInterval(async () => {
-      const stateCheck = await window.evolutionService.checkConnectionState(url, key, instance);
-      if (stateCheck.connected) {
-        clearInterval(this.evolutionPollingTimer);
-        this.evolutionPollingTimer = null;
-        this.updateEvolutionStatusUI('open', true);
-        if (box) {
-          box.innerHTML = `
-            <div class="text-center p-4 text-emerald-600">
-              <span class="text-4xl block mb-2">🎉</span>
-              <span class="text-xs font-bold block">WhatsApp Conectado com Sucesso!</span>
-            </div>`;
-        }
-        if (statusTxt) statusTxt.textContent = 'Conectado!';
-        if (window.confetti) window.confetti({ particleCount: 60, spread: 70 });
-        setTimeout(() => {
-          this.closeEvolutionQrModal();
-        }, 1800);
-      }
-    }, 3000);
-  }
-
-  closeEvolutionQrModal() {
-    if (this.evolutionPollingTimer) {
-      clearInterval(this.evolutionPollingTimer);
-      this.evolutionPollingTimer = null;
-    }
-    const modal = document.getElementById('modal-evolution-qrcode');
-    if (modal) modal.classList.add('hidden');
-  }
-
-  async logoutEvolutionWhatsApp() {
-    if (!window.evolutionService) return;
-    if (!confirm('Deseja desconectar a sessão do WhatsApp da Evolution API?')) return;
-
-    const res = await window.evolutionService.logoutInstance();
-    this.updateEvolutionStatusUI('disconnected', false);
-    if (res.success) {
-      alert('Sessão do WhatsApp desconectada com sucesso.');
-    } else {
-      alert('Não foi possível desconectar: ' + (res.error || 'Erro desconhecido'));
-    }
-  }
-
-  async testEvolutionMessage() {
-    if (!window.evolutionService) return;
-    const url = document.getElementById('setting-evolution-url')?.value.trim() || 'https://api.bascully.com.br';
-    const key = document.getElementById('setting-evolution-apikey')?.value.trim() || 'MudeParaUmaSenhaForte123';
-    const instance = document.getElementById('setting-evolution-instance')?.value.trim() || 'financeiro5';
-    const phone = document.getElementById('setting-evolution-phone')?.value.trim() || '5511943137268';
 
     if (!phone) {
-      alert('⚠️ Por favor, digite o seu número de WhatsApp com DDD (ex: 11999998888) antes de testar.');
-      document.getElementById('setting-evolution-phone')?.focus();
+      alert('⚠️ Por favor, digite o seu número de WhatsApp com DDD (ex: 5511943137268) antes de testar.');
+      document.getElementById('setting-whaticket-phone')?.focus();
       return;
     }
 
-    const btn = document.getElementById('btn-evolution-test');
-    if (btn) btn.textContent = 'Verificando...';
+    const btn = document.getElementById('btn-whaticket-test') || document.getElementById('btn-evolution-test');
+    if (btn) btn.textContent = 'Enviando...';
 
     // Salva configurações atualizadas
-    window.evolutionService.saveConfig({
+    waService.saveConfig({
       apiUrl: url,
-      apiKey: key,
-      instanceName: instance,
+      token: token,
       userPhone: phone
     });
 
-    // 1. Valida se a instância está conectada antes de tentar disparar
-    const check = await window.evolutionService.checkConnectionState(url, key, instance);
-    if (!check.connected) {
-      if (btn) {
-        btn.innerHTML = '<i data-lucide="send" class="w-3.5 h-3.5"></i> Testar Envio';
-        if (window.lucide) window.lucide.createIcons();
-      }
-      alert('⚠️ O WhatsApp ainda não está conectado!\n\nClique no botão verde "Conectar / QR", aponte a câmera do seu WhatsApp (Aparelhos Conectados) para o QR Code na tela e aguarde conectar.');
-      return;
-    }
-
-    if (btn) btn.textContent = 'Enviando...';
-    const res = await window.evolutionService.sendTestMessage();
+    const res = await waService.sendTestMessage();
 
     if (btn) {
-      btn.innerHTML = '<i data-lucide="send" class="w-3.5 h-3.5"></i> Testar Envio';
+      btn.innerHTML = '<i data-lucide="send" class="w-3.5 h-3.5"></i> Enviar Mensagem de Teste no WhatsApp';
       if (window.lucide) window.lucide.createIcons();
     }
 
     if (res && res.success) {
       if (window.confetti) window.confetti({ particleCount: 40, spread: 50 });
-      alert(`✅ Mensagem de teste enviada com sucesso para o WhatsApp ${phone}!\nVerifique as mensagens no seu celular.`);
+      alert(`✅ Mensagem de teste enviada com sucesso para o WhatsApp ${phone} via Whaticket!\nVerifique as mensagens no seu celular.`);
+      this.updateWhaticketStatusUI();
     } else {
-      alert(`❌ Falha ao enviar WhatsApp:\n${(res && res.message) || 'Verifique se o seu celular está com internet e se a instância está ativa.'}`);
+      alert(`❌ Falha ao enviar WhatsApp via Whaticket:\n${(res && (res.message || res.error)) || 'Verifique se o token de envio e o número estão corretos.'}`);
     }
+  }
+
+  // Alias para compatibilidade
+  async testEvolutionMessage() {
+    return this.testWhaticketMessage();
   }
 
   updateGroqStatusUI(apiKey) {

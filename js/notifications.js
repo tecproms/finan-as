@@ -1,4 +1,4 @@
-﻿// Módulo de Notificações Nativas e Lembretes Diários - FinControl Pro
+// Módulo de Notificações Nativas e Lembretes Diários - FinControl Pro
 
 class NotificationManager {
   constructor() {
@@ -193,16 +193,17 @@ class NotificationManager {
       renotify: true
     });
 
-    // Envia também via WhatsApp através da Evolution API se configurado
-    if (window.evolutionService) {
+    // Envia também via WhatsApp através do Whaticket se configurado
+    const waService = window.whaticketService || window.evolutionService;
+    if (waService) {
       try {
-        await window.evolutionService.sendDailyDigestWhatsApp(data);
-      } catch (evoErr) {
-        console.warn('Falha ao enviar resumo pelo WhatsApp:', evoErr);
+        await waService.sendDailyDigestWhatsApp(data);
+      } catch (waErr) {
+        console.warn('Falha ao enviar resumo pelo WhatsApp:', waErr);
       }
     }
 
-    if (sent || (window.evolutionService && window.evolutionService.getConfig().userPhone)) {
+    if (sent || (waService && waService.getConfig().userPhone)) {
       this.setStorageItem('fincontrol_last_daily_notification', data.today);
     }
     return sent;
@@ -215,7 +216,8 @@ class NotificationManager {
       const granted = await this.requestPermission();
       if (!granted) {
         // Se permissão do navegador foi negada mas tem WhatsApp, envia pelo WhatsApp
-        if (window.evolutionService && window.evolutionService.getConfig().userPhone) {
+        const waService = window.whaticketService || window.evolutionService;
+        if (waService && waService.getConfig().userPhone) {
           return this.sendDailyDigest();
         }
         return false;
@@ -228,15 +230,16 @@ class NotificationManager {
   // Verifica se chegou o horário programado do resumo diário
   checkScheduledDailyDigest() {
     const settings = window.db ? window.db.getSettings() : {};
-    const evoConfig = window.evolutionService ? window.evolutionService.getConfig() : null;
-    const hasWhatsAppSummary = evoConfig && evoConfig.notifySummary && evoConfig.userPhone;
+    const waService = window.whaticketService || window.evolutionService;
+    const waConfig = waService ? waService.getConfig() : null;
+    const hasWhatsAppSummary = waConfig && waConfig.notifySummary && waConfig.userPhone;
 
     if (settings.dailyNotificationEnabled === false && !hasWhatsAppSummary) return;
     if (this.getPermission() !== 'granted' && !hasWhatsAppSummary) return;
 
     const today = new Date().toISOString().split('T')[0];
     const lastSent = this.getStorageItem('fincontrol_last_daily_notification');
-    if (lastSent === today) return; // JÁ enviou hoje
+    if (lastSent === today) return; // Já enviou hoje
 
     const scheduledTime = settings.dailyNotificationTime || '08:00';
     const [targetHour, targetMinute] = scheduledTime.split(':').map(Number);
@@ -254,8 +257,9 @@ class NotificationManager {
   // Verifica compromissos da agenda que vão ocorrer nos próximos 15 minutos
   checkUpcomingAppointments() {
     const settings = window.db ? window.db.getSettings() : {};
-    const evoConfig = window.evolutionService ? window.evolutionService.getConfig() : null;
-    const hasWhatsAppReminders = evoConfig && evoConfig.notifyAppointments && evoConfig.userPhone;
+    const waService = window.whaticketService || window.evolutionService;
+    const waConfig = waService ? waService.getConfig() : null;
+    const hasWhatsAppReminders = waConfig && waConfig.notifyAppointments && waConfig.userPhone;
 
     if (settings.appointmentReminderEnabled === false && !hasWhatsAppReminders) return;
     if (this.getPermission() !== 'granted' && !hasWhatsAppReminders) return;
@@ -278,18 +282,18 @@ class NotificationManager {
           this.setSessionItem(alertedKey, 'true');
           const timeDesc = diff === 0 ? 'acontecendo agora' : `em ${diff} minuto(s)`;
           
-          // Notifica��o no navegador
+          // Notificação no navegador
           this.sendNotification(
-            `? Compromisso ${timeDesc}!`,
+            `🔔 Compromisso ${timeDesc}!`,
             {
-              body: `${app.title} às ${app.time}${app.location ? ' é ' + app.location : ''}`,
+              body: `${app.title} às ${app.time}${app.location ? ' • ' + app.location : ''}`,
               tag: `app-${app.id}`
             }
           );
 
           // Lembrete no WhatsApp
-          if (window.evolutionService && hasWhatsAppReminders) {
-            window.evolutionService.sendAppointmentReminderWhatsApp(app, diff);
+          if (waService && hasWhatsAppReminders) {
+            waService.sendAppointmentReminderWhatsApp(app, diff);
           }
         }
       }
