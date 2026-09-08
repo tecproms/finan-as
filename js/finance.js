@@ -367,17 +367,14 @@ class FinanceModule {
     };
 
     const settings = window.db ? window.db.getSettings() : {};
-    const includeOverdue = settings.includeOverdueInMetrics !== false;
 
-    // Identifica contas vencidas que ficaram para trás antes desta semana (se ativado)
+    // Identifica contas vencidas que ficaram para trás antes desta semana (da semana passada e períodos anteriores)
     let overdueBeforeThisWeek = 0;
-    if (includeOverdue) {
-      allTxs.forEach(t => {
-        if (t.status === 'pending' && t.type === 'expense' && t.date && t.date < thisWeekStartStr) {
-          overdueBeforeThisWeek += (parseFloat(t.amount) || 0);
-        }
-      });
-    }
+    allTxs.forEach(t => {
+      if (t.status === 'pending' && t.type === 'expense' && t.date && t.date < thisWeekStartStr) {
+        overdueBeforeThisWeek += (parseFloat(t.amount) || 0);
+      }
+    });
 
     const lastWeek = {
       startStr: lastWeekStartStr,
@@ -404,21 +401,41 @@ class FinanceModule {
       ...calculateRange(nextWeekStartStr, nextWeekEndStr, true)
     };
 
-    // Diagnóstico e Recomendação Inteligente
+    // Diagnóstico e Recomendação Inteligente (Balanceando com o Saldo Real da Conta)
     let alertType = 'success';
     let alertTitle = '';
     let alertMessage = '';
     let recommendedSave = 0;
 
-    if (overdueBeforeThisWeek > 0 && thisWeek.netWithOverdue < 0) {
-      alertType = 'danger';
-      alertTitle = '⚠️ Atenção: Contas atrasadas superam o fluxo previsto desta semana!';
-      const deficit = Math.abs(thisWeek.netWithOverdue);
-      alertMessage = `Você possui **${this.formatMoney(overdueBeforeThisWeek)}** em contas vencidas de períodos anteriores em aberto! Somando com as contas previstas desta semana (${this.formatMoney(thisWeek.totalExpense)}), a previsão semanal ficará negativa em **${this.formatMoney(deficit)}**. Priorize quitar os atrasados ou buscar receitas extras.`;
-    } else if (overdueBeforeThisWeek > 0) {
-      alertType = 'warning';
-      alertTitle = '⚠️ Sobra semanal prevista, mas há contas atrasadas para quitar!';
-      alertMessage = `Você possui **${this.formatMoney(overdueBeforeThisWeek)}** em contas vencidas de meses anteriores em aberto! Recomendamos quitar essa dívida usando as entradas previstas desta semana. Sua sobra prevista final será de **${this.formatMoney(thisWeek.netWithOverdue)}**.`;
+    const currentMetrics = this.getMonthlyMetrics ? this.getMonthlyMetrics() : null;
+    const currentBal = currentMetrics ? currentMetrics.currentBalance : 0;
+    const nextDeficit = nextWeek.net < 0 ? Math.abs(nextWeek.net) : 0;
+
+    if (overdueBeforeThisWeek > 0) {
+      if (currentBal >= overdueBeforeThisWeek) {
+        const balAfterOverdue = currentBal - overdueBeforeThisWeek;
+        if (nextDeficit > 0) {
+          if (balAfterOverdue >= nextDeficit) {
+            alertType = 'info';
+            alertTitle = '✅ Saldo atual cobre as contas pendentes e a próxima semana!';
+            alertMessage = `Você possui **${this.formatMoney(overdueBeforeThisWeek)}** em contas em aberto da semana passada/anteriores. Seu saldo atual em conta (**${this.formatMoney(currentBal)}**) é suficiente para quitá-las e ainda cobrir as contas previstas da próxima semana (${nextWeek.label}), restando **${this.formatMoney(balAfterOverdue - nextDeficit)}** em caixa!`;
+          } else {
+            const missingNext = nextDeficit - balAfterOverdue;
+            alertType = 'warning';
+            alertTitle = '⚠️ Atenção: Contas em aberto da semana passada impactam a próxima semana';
+            alertMessage = `Você possui **${this.formatMoney(overdueBeforeThisWeek)}** em contas em aberto da semana passada/anteriores. Usando seu saldo atual de **${this.formatMoney(currentBal)}**, sobrarão **${this.formatMoney(balAfterOverdue)}** em conta. Como na próxima semana (${nextWeek.label}) há **${this.formatMoney(nextDeficit)}** em contas previstas, faltarão **${this.formatMoney(missingNext)}** para fechar as contas.`;
+          }
+        } else {
+          alertType = 'warning';
+          alertTitle = '⚠️ Quitação recomendada: Contas em aberto da semana passada';
+          alertMessage = `Você possui **${this.formatMoney(overdueBeforeThisWeek)}** em contas em aberto da semana passada/anteriores. Seu saldo atual de **${this.formatMoney(currentBal)}** cobre essa quitação com sobra de **${this.formatMoney(balAfterOverdue)}**.`;
+        }
+      } else {
+        const missingOverdue = overdueBeforeThisWeek - currentBal;
+        alertType = 'danger';
+        alertTitle = '🚨 Alerta: Saldo insuficiente para cobrir contas em aberto da semana passada';
+        alertMessage = `Você possui **${this.formatMoney(overdueBeforeThisWeek)}** em contas em aberto da semana passada/anteriores, superando seu saldo atual (**${this.formatMoney(currentBal)}**). Faltam **${this.formatMoney(missingOverdue)}** apenas para quitar as contas atrasadas.` + (nextDeficit > 0 ? ` E na próxima semana há mais **${this.formatMoney(nextDeficit)}** em contas previstas.` : '');
+      }
     } else if (thisWeek.net > 0 && nextWeek.net < 0) {
       alertType = 'warning';
       alertTitle = '⚠️ Sobra agora, mas faltará semana que vem!';
@@ -438,8 +455,6 @@ class FinanceModule {
       alertMessage = `Faltam **${this.formatMoney(deficitThis)}** para cobrir as contas em aberto desta semana (${thisWeek.label}), mas na próxima semana você terá uma recuperação positiva de **${this.formatMoney(nextWeek.net)}**.`;
     } else if (thisWeek.net >= 0 && nextWeek.net < 0) {
       const deficitNext = Math.abs(nextWeek.net);
-      const currentMetrics = this.getMonthlyMetrics ? this.getMonthlyMetrics() : null;
-      const currentBal = currentMetrics ? currentMetrics.currentBalance : 0;
       if (currentBal >= deficitNext) {
         alertType = 'info';
         alertTitle = '✅ Saldo em conta cobre as contas da próxima semana';

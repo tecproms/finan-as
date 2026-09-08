@@ -513,11 +513,12 @@ class App {
       }
       if (elLastExpense) {
         if (radar.lastWeek.expensePending > 0) {
-          elLastExpense.innerHTML = `<span>${window.finance.formatMoney(radar.lastWeek.totalExpense)}</span> <span class="text-[10px] text-amber-400 font-semibold block">(+ ${window.finance.formatMoney(radar.lastWeek.expensePending)} em aberto)</span>`;
+          elLastExpense.innerHTML = `<span>${window.finance.formatMoney(radar.lastWeek.totalExpense)}</span> <span class="text-[10px] text-amber-400 font-semibold block hover:underline" title="Clique para ver pendências da semana passada">(+ ${window.finance.formatMoney(radar.lastWeek.expensePending)} em aberto)</span>`;
+          elLastExpense.parentElement.onclick = () => this.filterFromRadar(radar.lastWeek.startStr, radar.lastWeek.endStr, 'expense', 'pending');
         } else {
           elLastExpense.textContent = window.finance.formatMoney(radar.lastWeek.totalExpense);
+          elLastExpense.parentElement.onclick = () => this.filterFromRadar(radar.lastWeek.startStr, radar.lastWeek.endStr, 'expense', 'all');
         }
-        elLastExpense.parentElement.onclick = () => this.filterFromRadar(radar.lastWeek.startStr, radar.lastWeek.endStr, 'expense', 'all');
         elLastExpense.parentElement.classList.add('cursor-pointer', 'hover:scale-[1.05]', 'transition-transform');
       }
       if (elLastNet) {
@@ -525,7 +526,9 @@ class App {
         elLastNet.className = `text-xs sm:text-sm font-bold ${radar.lastWeek.net >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
       }
       if (elLastStatus) {
-        if (radar.lastWeek.net > 0) {
+        if (radar.lastWeek.expensePending > 0) {
+          elLastStatus.innerHTML = `<span class="text-amber-300 font-semibold text-xs flex items-center justify-between w-full"><span>Sobra: +${window.finance.formatMoney(radar.lastWeek.net)}</span> <span class="text-amber-400 font-bold">(${window.finance.formatMoney(radar.lastWeek.expensePending)} a pagar)</span></span>`;
+        } else if (radar.lastWeek.net > 0) {
           elLastStatus.innerHTML = `<span class="text-emerald-400 font-semibold">Sobra Realizada: +${window.finance.formatMoney(radar.lastWeek.net)}</span>`;
         } else if (radar.lastWeek.net < 0) {
           elLastStatus.innerHTML = `<span class="text-rose-400 font-semibold">Déficit: -${window.finance.formatMoney(Math.abs(radar.lastWeek.net))}</span>`;
@@ -567,7 +570,9 @@ class App {
 
     if (elThisStatus) {
       const netVal = radar.thisWeek.overdueExpense > 0 ? radar.thisWeek.netWithOverdue : radar.thisWeek.net;
-      if (netVal > 0) {
+      if (radar.thisWeek.overdueExpense > 0 && netVal < 0) {
+        elThisStatus.innerHTML = `<span class="text-rose-400 font-bold">Falta: -${window.finance.formatMoney(Math.abs(netVal))} (com atrasos)</span>`;
+      } else if (netVal > 0) {
         elThisStatus.innerHTML = `<span class="text-emerald-400 font-bold">${radar.thisWeek.overdueExpense > 0 ? 'Sobra Real:' : 'Sobra:'} +${window.finance.formatMoney(netVal)}</span>`;
       } else if (netVal < 0) {
         elThisStatus.innerHTML = `<span class="text-rose-400 font-bold">Falta: -${window.finance.formatMoney(Math.abs(netVal))}</span>`;
