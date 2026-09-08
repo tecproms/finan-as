@@ -337,8 +337,9 @@ class FinanceModule {
         }
       });
 
-      const totalIncome = incomePaid + incomePending;
-      const totalExpense = expensePaid + expensePending;
+      // Previsão de caixa: considera estritamente os lançamentos em aberto / pendentes
+      const totalIncome = incomePending;
+      const totalExpense = expensePending;
       const net = totalIncome - totalExpense; // > 0 Sobra, < 0 Falta
 
       return {
@@ -392,38 +393,56 @@ class FinanceModule {
 
     if (overdueBeforeThisWeek > 0 && thisWeek.netWithOverdue < 0) {
       alertType = 'danger';
-      alertTitle = '⚠️ Atenção: Contas atrasadas superam o fluxo desta semana!';
+      alertTitle = '⚠️ Atenção: Contas atrasadas superam o fluxo previsto desta semana!';
       const deficit = Math.abs(thisWeek.netWithOverdue);
-      alertMessage = `Você possui **${this.formatMoney(overdueBeforeThisWeek)}** em contas vencidas de períodos anteriores em aberto! Somando com as contas desta semana (${this.formatMoney(thisWeek.totalExpense)}), seu saldo semanal ficará negativo em **${this.formatMoney(deficit)}**. Priorize quitar os atrasados ou buscar receitas extras.`;
+      alertMessage = `Você possui **${this.formatMoney(overdueBeforeThisWeek)}** em contas vencidas de períodos anteriores em aberto! Somando com as contas previstas desta semana (${this.formatMoney(thisWeek.totalExpense)}), a previsão semanal ficará negativa em **${this.formatMoney(deficit)}**. Priorize quitar os atrasados ou buscar receitas extras.`;
     } else if (overdueBeforeThisWeek > 0) {
       alertType = 'warning';
-      alertTitle = '⚠️ Sobra semanal, mas há contas atrasadas para quitar!';
-      alertMessage = `Você possui **${this.formatMoney(overdueBeforeThisWeek)}** em contas vencidas de meses anteriores em aberto! Recomendamos quitar essa dívida agora usando as entradas desta semana. Sua sobra real final será de **${this.formatMoney(thisWeek.netWithOverdue)}**.`;
+      alertTitle = '⚠️ Sobra semanal prevista, mas há contas atrasadas para quitar!';
+      alertMessage = `Você possui **${this.formatMoney(overdueBeforeThisWeek)}** em contas vencidas de meses anteriores em aberto! Recomendamos quitar essa dívida usando as entradas previstas desta semana. Sua sobra prevista final será de **${this.formatMoney(thisWeek.netWithOverdue)}**.`;
     } else if (thisWeek.net > 0 && nextWeek.net < 0) {
       alertType = 'warning';
-      alertTitle = '⚠️ Vai sobrar agora, mas faltará semana que vem!';
+      alertTitle = '⚠️ Sobra agora, mas faltará semana que vem!';
       const deficitNext = Math.abs(nextWeek.net);
       recommendedSave = Math.min(thisWeek.net, deficitNext);
-      alertMessage = `Esta semana você terá uma sobra de **${this.formatMoney(thisWeek.net)}**, porém na semana que vem (${nextWeek.label}) você tem contas que superam as entradas gerando um déficit de **${this.formatMoney(deficitNext)}**. Recomendamos **guardar ${this.formatMoney(recommendedSave)}** desta semana para cobrir as contas da próxima semana sem passar aperto!`;
+      alertMessage = `Esta semana você terá uma sobra prevista de **${this.formatMoney(thisWeek.net)}**, porém na semana que vem (${nextWeek.label}) há contas em aberto que superam as entradas gerando um déficit de **${this.formatMoney(deficitNext)}**. Recomendamos **guardar ${this.formatMoney(recommendedSave)}** desta semana para cobrir as contas da próxima semana!`;
     } else if (thisWeek.net < 0 && nextWeek.net < 0) {
       alertType = 'danger';
-      alertTitle = '🚨 Alerta: Déficit nesta e na próxima semana!';
+      alertTitle = '🚨 Alerta: Déficit previsto nesta e na próxima semana!';
       const deficitThis = Math.abs(thisWeek.net);
       const deficitNext = Math.abs(nextWeek.net);
-      alertMessage = `Atenção máxima: faltam **${this.formatMoney(deficitThis)}** para fechar as contas desta semana e mais **${this.formatMoney(deficitNext)}** na próxima semana. Tente antecipar recebíveis ou negociar prazos.`;
+      alertMessage = `Atenção máxima: faltam **${this.formatMoney(deficitThis)}** em contas em aberto nesta semana e mais **${this.formatMoney(deficitNext)}** na próxima semana. Tente antecipar recebíveis ou negociar prazos.`;
     } else if (thisWeek.net < 0 && nextWeek.net >= 0) {
       alertType = 'danger';
       alertTitle = '⚠️ Aperto nesta semana, mas alívio na próxima!';
       const deficitThis = Math.abs(thisWeek.net);
-      alertMessage = `Faltam **${this.formatMoney(deficitThis)}** para cobrir as despesas desta semana (${thisWeek.label}), mas na próxima semana você terá uma recuperação positiva de **${this.formatMoney(nextWeek.net)}**.`;
+      alertMessage = `Faltam **${this.formatMoney(deficitThis)}** para cobrir as contas em aberto desta semana (${thisWeek.label}), mas na próxima semana você terá uma recuperação positiva de **${this.formatMoney(nextWeek.net)}**.`;
+    } else if (thisWeek.net >= 0 && nextWeek.net < 0) {
+      const deficitNext = Math.abs(nextWeek.net);
+      const currentMetrics = this.getMonthlyMetrics ? this.getMonthlyMetrics() : null;
+      const currentBal = currentMetrics ? currentMetrics.currentBalance : 0;
+      if (currentBal >= deficitNext) {
+        alertType = 'info';
+        alertTitle = '✅ Saldo em conta cobre as contas da próxima semana';
+        alertMessage = `Na próxima semana (${nextWeek.label}) você possui **${this.formatMoney(deficitNext)}** em contas previstas a pagar, e seu saldo atual em conta (**${this.formatMoney(currentBal)}**) é suficiente para cobri-las!`;
+      } else if (currentBal > 0) {
+        const remainingDeficit = deficitNext - currentBal;
+        alertType = 'warning';
+        alertTitle = '⚠️ Saldo atual cobre parte das contas da próxima semana';
+        alertMessage = `Na próxima semana (${nextWeek.label}) você possui **${this.formatMoney(deficitNext)}** em contas a pagar. Usando seu saldo atual de **${this.formatMoney(currentBal)}**, a diferença restante a cobrir será de apenas **${this.formatMoney(remainingDeficit)}**.`;
+      } else {
+        alertType = 'warning';
+        alertTitle = '⚠️ Atenção: Contas previstas para a próxima semana!';
+        alertMessage = `Esta semana não há contas pendentes em aberto, porém na próxima semana (${nextWeek.label}) você possui **${this.formatMoney(deficitNext)}** em contas a pagar.`;
+      }
     } else if (thisWeek.net > 0 && nextWeek.net >= 0) {
       alertType = 'success';
       alertTitle = '🎉 Fluxo Semanal Seguro e Positivo!';
-      alertMessage = `Suas entradas cobrem todas as contas previstas com sobra de **${this.formatMoney(thisWeek.net)}** nesta semana e mais **${this.formatMoney(nextWeek.net)}** na próxima semana. Ótimo momento para guardar uma reserva!`;
+      alertMessage = `Suas entradas previstas cobrem todas as contas em aberto com sobra de **${this.formatMoney(thisWeek.net)}** nesta semana e mais **${this.formatMoney(nextWeek.net)}** na próxima semana. Ótimo momento para guardar uma reserva!`;
     } else {
       alertType = 'info';
       alertTitle = 'ℹ️ Fluxo Semanal Equilibrado';
-      alertMessage = `Suas contas desta semana estão equilibradas. Conforme você lançar novas receitas e despesas com suas datas, o radar calculará a previsão automática.`;
+      alertMessage = `Suas contas desta semana estão equilibradas sem pendências em aberto. Conforme você lançar novas receitas e despesas com suas datas, o radar calculará a previsão automática.`;
     }
 
     return {

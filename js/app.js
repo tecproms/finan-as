@@ -296,8 +296,8 @@ class App {
     this.renderFinances();
   }
 
-  filterFromRadar(startStr, endStr, type) {
-    this.activeCustomFilter = { start: startStr, end: endStr, type: type };
+  filterFromRadar(startStr, endStr, type, status = 'pending') {
+    this.activeCustomFilter = { start: startStr, end: endStr, type: type, status: status };
     this.switchTab('finances');
     this.renderFinances();
   }
@@ -507,7 +507,7 @@ class App {
     if (elThisLabel) elThisLabel.textContent = radar.thisWeek.label;
     if (elThisIncome) {
       elThisIncome.textContent = window.finance.formatMoney(radar.thisWeek.totalIncome);
-      elThisIncome.parentElement.onclick = () => this.filterFromRadar(radar.thisWeek.startStr, radar.thisWeek.endStr, 'income');
+      elThisIncome.parentElement.onclick = () => this.filterFromRadar(radar.thisWeek.startStr, radar.thisWeek.endStr, 'income', 'pending');
       elThisIncome.parentElement.classList.add('cursor-pointer', 'hover:scale-[1.05]', 'transition-transform');
     }
     
@@ -517,7 +517,7 @@ class App {
       } else {
         elThisExpense.textContent = window.finance.formatMoney(radar.thisWeek.totalExpense);
       }
-      elThisExpense.parentElement.onclick = () => this.filterFromRadar(radar.thisWeek.startStr, radar.thisWeek.endStr, 'expense');
+      elThisExpense.parentElement.onclick = () => this.filterFromRadar(radar.thisWeek.startStr, radar.thisWeek.endStr, 'expense', 'pending');
       elThisExpense.parentElement.classList.add('cursor-pointer', 'hover:scale-[1.05]', 'transition-transform');
     }
 
@@ -533,6 +533,8 @@ class App {
         elThisStatus.innerHTML = `<span class="text-emerald-400 font-bold">${radar.thisWeek.overdueExpense > 0 ? 'Sobra Real:' : 'Sobra:'} +${window.finance.formatMoney(netVal)}</span>`;
       } else if (netVal < 0) {
         elThisStatus.innerHTML = `<span class="text-rose-400 font-bold">Falta: -${window.finance.formatMoney(Math.abs(netVal))}</span>`;
+      } else if (radar.thisWeek.expensePaid > 0) {
+        elThisStatus.innerHTML = `<span class="text-slate-400 font-medium text-[11px]">Sem pendências (${window.finance.formatMoney(radar.thisWeek.expensePaid)} já quitado)</span>`;
       } else {
         elThisStatus.innerHTML = `<span class="text-slate-400 font-medium">Equilibrado (R$ 0,00)</span>`;
       }
@@ -548,12 +550,12 @@ class App {
     if (elNextLabel) elNextLabel.textContent = radar.nextWeek.label;
     if (elNextIncome) {
       elNextIncome.textContent = window.finance.formatMoney(radar.nextWeek.totalIncome);
-      elNextIncome.parentElement.onclick = () => this.filterFromRadar(radar.nextWeek.startStr, radar.nextWeek.endStr, 'income');
+      elNextIncome.parentElement.onclick = () => this.filterFromRadar(radar.nextWeek.startStr, radar.nextWeek.endStr, 'income', 'pending');
       elNextIncome.parentElement.classList.add('cursor-pointer', 'hover:scale-[1.05]', 'transition-transform');
     }
     if (elNextExpense) {
       elNextExpense.textContent = window.finance.formatMoney(radar.nextWeek.totalExpense);
-      elNextExpense.parentElement.onclick = () => this.filterFromRadar(radar.nextWeek.startStr, radar.nextWeek.endStr, 'expense');
+      elNextExpense.parentElement.onclick = () => this.filterFromRadar(radar.nextWeek.startStr, radar.nextWeek.endStr, 'expense', 'pending');
       elNextExpense.parentElement.classList.add('cursor-pointer', 'hover:scale-[1.05]', 'transition-transform');
     }
     if (elNextNet) {
@@ -674,11 +676,22 @@ class App {
       if (this.activeCustomFilter.type !== 'all') {
         list = list.filter(t => t.type === this.activeCustomFilter.type);
       }
-      
+      if (this.activeCustomFilter.status && this.activeCustomFilter.status !== 'all') {
+        list = list.filter(t => t.status === this.activeCustomFilter.status);
+      }
+
+      // Sincroniza visualmente os selects da tela de finanças
+      const filterTypeEl = document.getElementById('finance-filter-type');
+      const filterStatusEl = document.getElementById('finance-filter-status');
+      if (filterTypeEl && this.activeCustomFilter.type) filterTypeEl.value = this.activeCustomFilter.type;
+      if (filterStatusEl && this.activeCustomFilter.status) filterStatusEl.value = this.activeCustomFilter.status;
+
       const filterBadge = document.getElementById('custom-filter-badge');
       if (filterBadge) {
         filterBadge.classList.remove('hidden');
-        filterBadge.innerHTML = `<i data-lucide="filter" class="w-3.5 h-3.5"></i> Filtro Especial Ativo: ${this.activeCustomFilter.start.split('-').reverse().join('/')} até ${this.activeCustomFilter.end.split('-').reverse().join('/')} (${this.activeCustomFilter.type === 'income' ? 'Receitas' : this.activeCustomFilter.type === 'expense' ? 'Despesas' : 'Tudo'}) <button onclick="app.clearCustomFilter()" class="ml-2 font-bold text-rose-300 hover:text-rose-100 underline flex items-center gap-1 inline-flex"><i data-lucide="x" class="w-3 h-3"></i> Limpar</button>`;
+        const typeLabel = this.activeCustomFilter.type === 'income' ? 'Receitas' : this.activeCustomFilter.type === 'expense' ? 'Despesas' : 'Tudo';
+        const statusLabel = this.activeCustomFilter.status === 'pending' ? ' (Em Aberto / Pendentes)' : this.activeCustomFilter.status === 'paid' ? ' (Já Baixadas)' : '';
+        filterBadge.innerHTML = `<i data-lucide="filter" class="w-3.5 h-3.5"></i> Filtro Especial Ativo: ${this.activeCustomFilter.start.split('-').reverse().join('/')} até ${this.activeCustomFilter.end.split('-').reverse().join('/')} - ${typeLabel}${statusLabel} <button onclick="app.clearCustomFilter()" class="ml-2 font-bold text-rose-300 hover:text-rose-100 underline flex items-center gap-1 inline-flex"><i data-lucide="x" class="w-3 h-3"></i> Limpar</button>`;
       }
     } else {
       const filterBadge = document.getElementById('custom-filter-badge');
