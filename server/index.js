@@ -233,6 +233,7 @@ app.put('/api/transactions/:id', async (req, res) => {
         due_date = COALESCE($8, due_date),
         status = COALESCE($9, status),
         notes = COALESCE($10, notes),
+        external_id = COALESCE($11, external_id),
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
       RETURNING *
@@ -247,7 +248,8 @@ app.put('/api/transactions/:id', async (req, res) => {
       t.date,
       t.dueDate,
       t.status,
-      t.notes
+      t.notes,
+      t.externalId || t.external_id || null
     ];
     const result = await query(sql, params);
     if (result.rows.length === 0) {

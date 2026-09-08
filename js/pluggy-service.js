@@ -265,7 +265,17 @@ class PluggyService {
 
     // 4. Identifica o que já existe no banco de dados local
     const existingTxs = window.db ? window.db.getTransactions() : [];
-    const existingExtIds = new Set(existingTxs.map(t => t.externalId).filter(Boolean));
+    const settings = window.db ? window.db.getSettings() : {};
+    const existingExtIds = new Set(settings.reconciledExternalIds || []);
+
+    existingTxs.forEach(t => {
+      if (t.externalId) existingExtIds.add(t.externalId);
+      if (t.notes && t.notes.includes('pluggy_')) {
+        const match = t.notes.match(/pluggy_[a-zA-Z0-9\-]+/);
+        if (match) existingExtIds.add(match[0]);
+      }
+    });
+
     const existingPaidSignatures = new Set(
       existingTxs
         .filter(t => t.status === 'paid')
@@ -297,10 +307,14 @@ class PluggyService {
 
         const pDate = new Date(p.dueDate || p.date);
         const cDate = new Date(cand.date);
-        const diffDays = Math.abs((cDate - pDate) / (1000 * 60 * 60 * 24));
+        // diffDays positivo = vencimento no passado/hoje (atrasada/em dia)
+        // diffDays negativo = vencimento no futuro (antecipada)
+        const diffDays = (cDate - pDate) / (1000 * 60 * 60 * 24);
 
-        if (diffDays <= 45 && diffDays < minDiffDays) {
-          minDiffDays = diffDays;
+        // Aceita contas atrasadas (até 45 dias no passado) ou vencendo nos próximos 7 dias
+        // Não sugere automaticamente parcelas de meses futuros para não confundir
+        if (diffDays >= -7 && diffDays <= 45 && Math.abs(diffDays) < minDiffDays) {
+          minDiffDays = Math.abs(diffDays);
           bestMatch = p;
         }
       }

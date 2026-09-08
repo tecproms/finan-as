@@ -2639,13 +2639,20 @@ class App {
 
     const pending = window.db.getTransactions().find(t => t.id === pendingId);
     if (pending) {
+      const updatedNotes = ((pending.notes ? pending.notes + ' | ' : '') + `Conciliado via Open Finance (${cand.paymentMethod || 'Banco'}) [ID: ${cand.externalId}]`).trim();
       window.db.updateTransaction(pendingId, {
         status: 'paid',
         date: cand.date,
         paymentMethod: cand.paymentMethod || 'Open Finance',
         externalId: cand.externalId,
-        notes: ((pending.notes ? pending.notes + ' | ' : '') + `Conciliado via Open Finance (${cand.paymentMethod || 'Banco'})`).trim()
+        notes: updatedNotes
       });
+
+      // Grava no histórico de IDs conciliados
+      const settings = window.db.getSettings();
+      const recIds = new Set(settings.reconciledExternalIds || []);
+      recIds.add(cand.externalId);
+      window.db.setSettings({ reconciledExternalIds: Array.from(recIds) });
 
       cand.processed = true;
       cand.actionType = 'reconciled';
@@ -2715,13 +2722,20 @@ class App {
       if (targetPendingId) {
         const p = pendingTxs.find(t => t.id === targetPendingId);
         if (p) {
+          const updatedNotes = ((p.notes ? p.notes + ' | ' : '') + `Conciliado via Open Finance (${cand.paymentMethod || 'Banco'}) [ID: ${cand.externalId}]`).trim();
           window.db.updateTransaction(p.id, {
             status: 'paid',
             date: cand.date,
             paymentMethod: cand.paymentMethod || 'Open Finance',
             externalId: cand.externalId,
-            notes: ((p.notes ? p.notes + ' | ' : '') + `Conciliado via Open Finance (${cand.paymentMethod || 'Banco'})`).trim()
+            notes: updatedNotes
           });
+
+          const settings = window.db.getSettings();
+          const recIds = new Set(settings.reconciledExternalIds || []);
+          recIds.add(cand.externalId);
+          window.db.setSettings({ reconciledExternalIds: Array.from(recIds) });
+
           cand.processed = true;
           cand.actionType = 'reconciled';
           cand.reconciledWith = p.description;
