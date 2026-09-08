@@ -389,20 +389,21 @@ class PluggyService {
 
       const combinedBankName = bankNames.join(', ') || 'Open Finance';
 
-      if (allCandidates.length > 0) {
-        if (window.app && window.app.openReconciliationModal) {
-          window.app.openReconciliationModal(allCandidates, combinedBankName, latestBankBalance);
+      if (latestBankBalance !== null) {
+        this.calibrateBalance(latestBankBalance);
+        const subtext = document.getElementById('dash-balance-subtext');
+        if (subtext) {
+          subtext.innerHTML = `<span class="text-emerald-400 font-medium">✅ Saldo ${combinedBankName} sincronizado: R$ ${latestBankBalance.toFixed(2).replace('.', ',')}</span>`;
         }
-      } else {
-        if (latestBankBalance !== null) {
-          this.calibrateBalance(latestBankBalance);
-          await window.db.syncWithServer().catch(() => {});
-          if (window.app) {
-            window.app.renderCurrentTab();
-            window.app.updateHeaderStats();
-          }
+        await window.db.syncWithServer().catch(() => {});
+        if (window.app) {
+          window.app.renderCurrentTab();
+          window.app.updateHeaderStats();
         }
-        alert(`✅ ${combinedBankName} sincronizado!\n\nTodas as movimentações já estão conciliadas e o saldo está 100% atualizado.`);
+      }
+
+      if (window.app && window.app.openReconciliationModal) {
+        window.app.openReconciliationModal(allCandidates, combinedBankName, latestBankBalance);
       }
     } catch (err) {
       console.error('Erro na sincronização Pluggy:', err);
@@ -412,83 +413,9 @@ class PluggyService {
     }
   }
 
-  // Sincroniza exclusivamente o saldo real bancário do Pluggy no card Saldo Atual
+  // Sincroniza saldo e movimentações ao clicar no botão da carteira
   async syncBalanceOnly(btn) {
-    const icon = document.getElementById('icon-sync-balance') || (btn ? btn.querySelector('[data-lucide="refresh-cw"], .lucide-refresh-cw') : null);
-    if (icon) icon.classList.add('animate-spin');
-
-    try {
-      const settings = window.db ? window.db.getSettings() : {};
-      let items = settings.pluggyItems || [];
-      if (items.length === 0 && settings.pluggyItemId) {
-        items = [{ id: settings.pluggyItemId }];
-      }
-      if (items.length === 0) {
-        // ID do Mercado Pago conectado na conta Pluggy do FinControl
-        items = [{ id: '72fefe33-e3ec-46ad-9a76-76d5d8f87c3a', connector: 'Mercado Pago' }];
-      }
-
-      const apiKey = await this.getApiKey();
-      let latestBalance = null;
-      let bankName = 'Mercado Pago';
-
-      for (const it of items) {
-        const accountsResp = await fetch(`${this.apiBase}/accounts?itemId=${it.id}`, {
-          headers: { 'X-API-KEY': apiKey }
-        });
-
-        if (accountsResp.ok) {
-          const accountsData = await accountsResp.json();
-          const accounts = accountsData.results || [];
-          for (const acc of accounts) {
-            if (acc.balance !== undefined && acc.balance !== null) {
-              latestBalance = acc.balance;
-              if (acc.name) bankName = acc.name;
-            }
-          }
-        }
-      }
-
-      if (latestBalance !== null) {
-        const allTx = window.db.getTransactions();
-        let totalNet = 0;
-        allTx.forEach(tx => {
-          if (tx.status === 'paid') {
-            const val = parseFloat(tx.amount) || 0;
-            if (tx.type === 'income') totalNet += val;
-            else totalNet -= val;
-          }
-        });
-
-        const calibratedInitial = (latestBalance - totalNet).toFixed(2);
-        window.db.setSettings({ initialBalance: calibratedInitial, pluggyItems: items });
-        await window.db.syncWithServer().catch(() => {});
-
-        if (window.app) {
-          window.app.renderCurrentTab();
-          window.app.updateHeaderStats();
-        }
-
-        if (window.confetti) window.confetti({ particleCount: 40, spread: 60 });
-
-        const subtext = document.getElementById('dash-balance-subtext');
-        if (subtext) {
-          subtext.innerHTML = `<span class="text-emerald-400 font-medium">✅ Saldo ${bankName} sincronizado: R$ ${latestBalance.toFixed(2).replace('.', ',')}</span>`;
-          setTimeout(() => {
-            if (window.app) {
-              window.app.renderCurrentTab();
-            }
-          }, 4000);
-        }
-      } else {
-        alert('Não foi possível obter o saldo da conta no momento.');
-      }
-    } catch (err) {
-      console.error('Erro ao sincronizar saldo Pluggy:', err);
-      alert('⚠️ Falha ao atualizar saldo Pluggy: ' + err.message);
-    } finally {
-      if (icon) icon.classList.remove('animate-spin');
-    }
+    return this.syncAll(btn);
   }
 }
 
