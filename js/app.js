@@ -513,7 +513,7 @@ class App {
       }
       if (elLastExpense) {
         if (radar.lastWeek.expensePending > 0) {
-          elLastExpense.innerHTML = `<span>${window.finance.formatMoney(radar.lastWeek.totalExpense)}</span> <span class="text-[10px] text-amber-400 font-semibold block hover:underline" title="Clique para ver pendências da semana passada">(+ ${window.finance.formatMoney(radar.lastWeek.expensePending)} em aberto)</span>`;
+          elLastExpense.innerHTML = `<span>${window.finance.formatMoney(radar.lastWeek.totalExpense)}</span> <span class="text-[10px] text-rose-400 font-semibold block hover:underline" title="Clique para ver pendências da semana passada">(+ ${window.finance.formatMoney(radar.lastWeek.expensePending)} em aberto)</span>`;
           elLastExpense.parentElement.onclick = () => this.filterFromRadar(radar.lastWeek.startStr, radar.lastWeek.endStr, 'expense', 'pending');
         } else {
           elLastExpense.textContent = window.finance.formatMoney(radar.lastWeek.totalExpense);
@@ -527,7 +527,7 @@ class App {
       }
       if (elLastStatus) {
         if (radar.lastWeek.expensePending > 0) {
-          elLastStatus.innerHTML = `<span class="text-amber-300 font-semibold text-xs flex items-center justify-between w-full"><span>Sobra: +${window.finance.formatMoney(radar.lastWeek.net)}</span> <span class="text-amber-400 font-bold">(${window.finance.formatMoney(radar.lastWeek.expensePending)} a pagar)</span></span>`;
+          elLastStatus.innerHTML = `<span class="text-xs flex items-center justify-between w-full"><span class="text-emerald-400 font-semibold">Sobra: +${window.finance.formatMoney(radar.lastWeek.net)}</span> <span class="text-rose-400 font-bold">(${window.finance.formatMoney(radar.lastWeek.expensePending)} a pagar)</span></span>`;
         } else if (radar.lastWeek.net > 0) {
           elLastStatus.innerHTML = `<span class="text-emerald-400 font-semibold">Sobra Realizada: +${window.finance.formatMoney(radar.lastWeek.net)}</span>`;
         } else if (radar.lastWeek.net < 0) {
