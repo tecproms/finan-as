@@ -2436,6 +2436,341 @@ class App {
     }
   }
 
+  // ==================== CONCILIAÇÃO BANCÁRIA OPEN FINANCE ====================
+  openReconciliationModal(candidates, bankName = 'Mercado Pago', latestBalance = null) {
+    this.reconciliationCandidates = candidates || [];
+    this.reconciliationBankName = bankName;
+    this.reconciliationLatestBalance = latestBalance;
+
+    const modal = document.getElementById('modal-reconciliation');
+    if (!modal) return;
+
+    const bankNameEl = document.getElementById('reconcile-bank-name');
+    if (bankNameEl) bankNameEl.textContent = bankName;
+
+    this.renderReconciliationList();
+
+    modal.classList.remove('hidden');
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  closeReconciliationModal() {
+    const modal = document.getElementById('modal-reconciliation');
+    if (modal) modal.classList.add('hidden');
+    this.reconciliationCandidates = [];
+  }
+
+  renderReconciliationList() {
+    const listEl = document.getElementById('reconciliation-list');
+    const countInfoEl = document.getElementById('reconcile-count-info');
+    const summaryBadgeEl = document.getElementById('reconcile-summary-badge');
+    const btnAll = document.getElementById('btn-reconcile-all');
+    if (!listEl) return;
+
+    const activeItems = this.reconciliationCandidates.filter(c => !c.processed);
+    const totalCount = this.reconciliationCandidates.length;
+    const processedCount = totalCount - activeItems.length;
+    const matchCount = activeItems.filter(c => c.suggestedMatch || c.selectedPendingId).length;
+    const newCount = activeItems.length - matchCount;
+
+    if (countInfoEl) {
+      countInfoEl.textContent = `${activeItems.length} movimentação(ões) pendente(s)`;
+    }
+
+    if (summaryBadgeEl) {
+      summaryBadgeEl.innerHTML = `
+        <span class="text-emerald-400 font-medium">${matchCount} com correspondência</span> • 
+        <span class="text-sky-400 font-medium">${newCount} novos</span> • 
+        <span class="text-slate-400">${processedCount} processados</span>
+      `;
+    }
+
+    if (btnAll) {
+      btnAll.disabled = activeItems.length === 0;
+      if (activeItems.length === 0) {
+        btnAll.classList.add('opacity-50', 'cursor-not-allowed');
+      } else {
+        btnAll.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+    }
+
+    if (this.reconciliationCandidates.length === 0) {
+      listEl.innerHTML = `
+        <div class="p-8 text-center text-slate-400">
+          <i data-lucide="check-circle" class="w-12 h-12 text-emerald-400 mx-auto mb-2 opacity-80"></i>
+          <p class="font-semibold text-white">Nenhuma movimentação pendente</p>
+          <p class="text-xs text-slate-400 mt-1">Todas as transações do banco já foram conciliadas com sucesso.</p>
+        </div>
+      `;
+      if (window.lucide) window.lucide.createIcons();
+      return;
+    }
+
+    const allPendingTxs = window.db.getTransactions().filter(t => t.status === 'pending');
+
+    listEl.innerHTML = this.reconciliationCandidates.map((cand, idx) => {
+      const isExpense = cand.type === 'expense';
+      const typeColor = isExpense ? 'text-rose-400' : 'text-emerald-400';
+      const typeBg = isExpense ? 'bg-rose-500/10' : 'bg-emerald-500/10';
+      const typeIcon = isExpense ? 'arrow-up-right' : 'arrow-down-left';
+      const sign = isExpense ? '-' : '+';
+      const formattedDate = window.finance.formatDate(cand.date);
+      const formattedAmount = window.finance.formatMoney(cand.amount);
+
+      if (cand.processed) {
+        return `
+          <div class="p-3.5 rounded-2xl bg-slate-800/30 border border-slate-800 flex items-center justify-between opacity-70">
+            <div class="flex items-center gap-3">
+              <div class="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+                <i data-lucide="check" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <p class="text-xs font-bold text-slate-300">${cand.description}</p>
+                <p class="text-[11px] text-slate-500">${cand.actionType === 'reconciled' ? `Conciliado com: ${cand.reconciledWith || 'Conta pendente'}` : 'Importado como novo lançamento'}</p>
+              </div>
+            </div>
+            <span class="text-xs font-mono font-bold ${typeColor}">${sign} ${formattedAmount}</span>
+          </div>
+        `;
+      }
+
+      // Se usuário selecionou manualmente outro pending ID ou se tem sugestão automática
+      const activePending = cand.selectedPendingId 
+        ? allPendingTxs.find(p => p.id === cand.selectedPendingId) 
+        : cand.suggestedMatch;
+
+      const hasMatch = !!activePending;
+
+      // Lista de outras opções de contas pendentes para vincular manualmente
+      const pendingOptions = allPendingTxs
+        .filter(p => p.type === cand.type)
+        .map(p => {
+          const isSelected = activePending && activePending.id === p.id;
+          return `<option value="${p.id}" ${isSelected ? 'selected' : ''}>${p.description} (${window.finance.formatMoney(p.amount)} - Vence ${window.finance.formatDate(p.dueDate || p.date)})</option>`;
+        }).join('');
+
+      return `
+        <div class="p-4 rounded-2xl bg-slate-800/60 border ${hasMatch ? 'border-emerald-500/30' : 'border-slate-700/60'} space-y-3 transition-all hover:border-slate-600">
+          <!-- Linha Superior: Extrato do Banco -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-700/40">
+            <div class="flex items-center gap-3">
+              <div class="p-2.5 rounded-xl ${typeBg} ${typeColor} shrink-0">
+                <i data-lucide="${typeIcon}" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-700 text-slate-300">Extrato Bancário</span>
+                  <span class="text-[11px] text-slate-400">${formattedDate}</span>
+                </div>
+                <h4 class="font-bold text-xs sm:text-sm text-white mt-0.5">${cand.description}</h4>
+              </div>
+            </div>
+            <div class="text-right pl-11 sm:pl-0">
+              <span class="text-sm sm:text-base font-black font-mono ${typeColor}">${sign} ${formattedAmount}</span>
+              <p class="text-[10px] text-slate-400">${cand.paymentMethod || 'Open Finance'}</p>
+            </div>
+          </div>
+
+          <!-- Linha Inferior: Correspondência ou Novo -->
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-0.5">
+            <div class="flex-1">
+              ${hasMatch ? `
+                <div class="flex items-start sm:items-center gap-2">
+                  <span class="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30 shrink-0 flex items-center gap-1">
+                    <i data-lucide="sparkles" class="w-3 h-3"></i> Sugestão Encontrada
+                  </span>
+                  <span class="text-xs text-slate-300">
+                    Conta: <strong class="text-emerald-300 font-bold">${activePending.description}</strong> 
+                    <span class="text-slate-400 text-[11px]">(Venc: ${window.finance.formatDate(activePending.dueDate || activePending.date)} • ${window.finance.formatMoney(activePending.amount)})</span>
+                  </span>
+                </div>
+              ` : `
+                <div class="flex items-center gap-2">
+                  <span class="px-2 py-0.5 rounded-md bg-sky-500/20 text-sky-300 text-[10px] font-bold border border-sky-500/30 shrink-0 flex items-center gap-1">
+                    <i data-lucide="plus-circle" class="w-3 h-3"></i> Novo Lançamento
+                  </span>
+                  <span class="text-xs text-slate-400">Nenhuma conta pendente compatível encontrada.</span>
+                </div>
+              `}
+
+              <!-- Seletor manual opcional de conta pendente -->
+              ${allPendingTxs.length > 0 ? `
+                <div class="mt-2">
+                  <select onchange="window.app.handleReconciliationSelect(${idx}, this.value)" class="text-[11px] bg-slate-900/90 text-slate-300 border border-slate-700/80 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-violet-500 w-full sm:max-w-md">
+                    <option value="">${hasMatch ? 'Trocar correspondência manual...' : 'Vincular manualmente a uma conta pendente...'}</option>
+                    ${pendingOptions}
+                  </select>
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Botões de Ação do Item -->
+            <div class="flex items-center gap-2 shrink-0 pt-1 sm:pt-0">
+              ${hasMatch ? `
+                <button type="button" onclick="window.app.reconcileItem(${idx}, '${activePending.id}')" class="py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-95">
+                  <i data-lucide="check" class="w-3.5 h-3.5"></i> Conciliar e Dar Baixa
+                </button>
+                <button type="button" onclick="window.app.importAsNewItem(${idx})" class="py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors" title="Não vincular à conta pendente, importar como novo">
+                  Importar como Novo
+                </button>
+              ` : `
+                <button type="button" onclick="window.app.importAsNewItem(${idx})" class="py-2 px-3 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm shadow-sky-500/20 transition-all hover:scale-[1.02] active:scale-95">
+                  <i data-lucide="plus" class="w-3.5 h-3.5"></i> Importar como Novo
+                </button>
+              `}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  handleReconciliationSelect(index, pendingId) {
+    if (!this.reconciliationCandidates[index]) return;
+    this.reconciliationCandidates[index].selectedPendingId = pendingId || null;
+    this.renderReconciliationList();
+  }
+
+  async reconcileItem(index, pendingId) {
+    const cand = this.reconciliationCandidates[index];
+    if (!cand) return;
+
+    const pending = window.db.getTransactions().find(t => t.id === pendingId);
+    if (pending) {
+      window.db.updateTransaction(pendingId, {
+        status: 'paid',
+        date: cand.date,
+        paymentMethod: cand.paymentMethod || 'Open Finance',
+        externalId: cand.externalId,
+        notes: ((pending.notes ? pending.notes + ' | ' : '') + `Conciliado via Open Finance (${cand.paymentMethod || 'Banco'})`).trim()
+      });
+
+      cand.processed = true;
+      cand.actionType = 'reconciled';
+      cand.reconciledWith = pending.description;
+    }
+
+    this.renderReconciliationList();
+    this.checkReconciliationCompletion();
+  }
+
+  async importAsNewItem(index) {
+    const cand = this.reconciliationCandidates[index];
+    if (!cand) return;
+
+    window.db.addTransaction({
+      type: cand.type,
+      description: cand.description,
+      amount: cand.amount,
+      category: cand.category,
+      paymentMethod: cand.paymentMethod,
+      date: cand.date,
+      dueDate: cand.date,
+      status: 'paid',
+      externalId: cand.externalId,
+      notes: cand.notes || `Sincronizado via Open Finance (${cand.paymentMethod})`
+    });
+
+    cand.processed = true;
+    cand.actionType = 'imported';
+
+    this.renderReconciliationList();
+    this.checkReconciliationCompletion();
+  }
+
+  async checkReconciliationCompletion() {
+    const remaining = this.reconciliationCandidates.filter(c => !c.processed);
+    if (remaining.length === 0) {
+      if (this.reconciliationLatestBalance !== null && window.pluggyService) {
+        window.pluggyService.calibrateBalance(this.reconciliationLatestBalance);
+      }
+      await window.db.syncWithServer().catch(() => {});
+
+      if (window.app) {
+        window.app.renderCurrentTab();
+        window.app.updateHeaderStats();
+      }
+
+      if (window.confetti) {
+        window.confetti({ particleCount: 70, spread: 80 });
+      }
+
+      setTimeout(() => {
+        this.closeReconciliationModal();
+      }, 1000);
+    }
+  }
+
+  async reconcileAll() {
+    const pendingTxs = window.db.getTransactions().filter(t => t.status === 'pending');
+    let reconciledCount = 0;
+    let importedCount = 0;
+
+    for (const cand of this.reconciliationCandidates) {
+      if (cand.processed) continue;
+
+      const targetPendingId = cand.selectedPendingId || (cand.suggestedMatch ? cand.suggestedMatch.id : null);
+      if (targetPendingId) {
+        const p = pendingTxs.find(t => t.id === targetPendingId);
+        if (p) {
+          window.db.updateTransaction(p.id, {
+            status: 'paid',
+            date: cand.date,
+            paymentMethod: cand.paymentMethod || 'Open Finance',
+            externalId: cand.externalId,
+            notes: ((p.notes ? p.notes + ' | ' : '') + `Conciliado via Open Finance (${cand.paymentMethod || 'Banco'})`).trim()
+          });
+          cand.processed = true;
+          cand.actionType = 'reconciled';
+          cand.reconciledWith = p.description;
+          reconciledCount++;
+          continue;
+        }
+      }
+
+      // Caso não tenha correspondência, importa como novo lançamento
+      window.db.addTransaction({
+        type: cand.type,
+        description: cand.description,
+        amount: cand.amount,
+        category: cand.category,
+        paymentMethod: cand.paymentMethod,
+        date: cand.date,
+        dueDate: cand.date,
+        status: 'paid',
+        externalId: cand.externalId,
+        notes: cand.notes || `Sincronizado via Open Finance (${cand.paymentMethod})`
+      });
+      cand.processed = true;
+      cand.actionType = 'imported';
+      importedCount++;
+    }
+
+    if (this.reconciliationLatestBalance !== null && window.pluggyService) {
+      window.pluggyService.calibrateBalance(this.reconciliationLatestBalance);
+    }
+
+    await window.db.syncWithServer().catch(() => {});
+
+    if (window.app) {
+      window.app.renderCurrentTab();
+      window.app.updateHeaderStats();
+    }
+
+    if (window.confetti) {
+      window.confetti({ particleCount: 80, spread: 90 });
+    }
+
+    this.renderReconciliationList();
+
+    setTimeout(() => {
+      this.closeReconciliationModal();
+      alert(`✅ Conciliação concluída!\n\n• ${reconciledCount} lançamentos conciliados com suas contas pendentes.\n• ${importedCount} novos lançamentos importados no caixa.`);
+    }, 700);
+  }
+
   // Bind de eventos globais
   bindEvents() {
     // Form submits

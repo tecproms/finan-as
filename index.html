@@ -519,6 +519,11 @@
               <span class="hidden sm:inline">Conectar Banco (Pluggy)</span>
               <span class="sm:hidden">Pluggy</span>
             </button>
+            <button id="btn-sync-pluggy" onclick="window.pluggyService.syncAll(this)" class="px-2.5 py-1.5 rounded-xl bg-violet-500/20 hover:bg-violet-500/30 text-violet-200 border border-violet-500/40 flex items-center gap-1.5 font-medium transition-colors" title="Sincronizar e Conciliar movimentações bancárias (Pluggy)">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-violet-400"></i>
+              <span class="hidden sm:inline">Sincronizar Banco</span>
+              <span class="sm:hidden">Sincronizar</span>
+            </button>
             <button onclick="window.exporter.exportTransactionsToCSV()" class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 font-medium transition-colors" title="Exportar para Excel / Planilha">
               <i data-lucide="sheet" class="w-3.5 h-3.5 text-emerald-400"></i>
               <span class="hidden sm:inline">Exportar CSV</span>
@@ -1609,6 +1614,53 @@
     </div>
   </div>
 
+  <!-- ==================== MODAL 7: CONCILIAÇÃO BANCÁRIA (OPEN FINANCE / PLUGGY) ==================== -->
+  <div id="modal-reconciliation" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 hidden">
+    <div class="modal-sheet w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
+      <!-- Header do Modal -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+        <div>
+          <h3 class="font-bold text-sm sm:text-base text-white flex items-center gap-2">
+            <i data-lucide="scale" class="w-5 h-5 text-violet-400"></i>
+            <span>Conciliação Bancária Open Finance</span>
+          </h3>
+          <div class="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
+            <span id="reconcile-bank-name" class="font-medium text-slate-300">Mercado Pago</span>
+            <span>•</span>
+            <span id="reconcile-count-info" class="text-emerald-400 font-semibold">0 movimentações para conciliar</span>
+          </div>
+        </div>
+        <button onclick="window.app.closeReconciliationModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Barra de Instrução e Ação Rápida -->
+      <div class="p-3 bg-slate-800/40 rounded-2xl border border-slate-700/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0">
+        <div class="text-xs text-slate-300">
+          <p class="font-medium text-slate-200">Revise as movimentações vindas da sua conta bancária:</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Vincule aos lançamentos pendentes para dar baixa sem duplicar, ou importe os novos lançamentos.</p>
+        </div>
+        <button type="button" id="btn-reconcile-all" onclick="window.app.reconcileAll()" class="w-full sm:w-auto py-2 px-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 shrink-0">
+          <i data-lucide="check-check" class="w-4 h-4"></i> Conciliar e Importar Tudo
+        </button>
+      </div>
+
+      <!-- Lista Rolável de Itens para Conciliação -->
+      <div id="reconciliation-list" class="space-y-3 overflow-y-auto flex-1 pr-1 custom-scrollbar">
+        <!-- Renderizado dinamicamente via App.renderReconciliationList -->
+      </div>
+
+      <!-- Rodapé do Modal -->
+      <div class="pt-3 border-t border-slate-800 flex items-center justify-between gap-2 shrink-0">
+        <span id="reconcile-summary-badge" class="text-[11px] text-slate-400"></span>
+        <button type="button" onclick="window.app.closeReconciliationModal()" class="py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold">
+          Fechar Janela
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ==================== TELA DE BLOQUEIO / LOCK SCREEN ==================== -->
   <div id="lock-screen-overlay" class="fixed inset-0 z-[100] bg-[#090d16]/95 backdrop-blur-2xl flex items-center justify-center p-4 hidden">
     <div id="lock-card-box" class="w-full max-w-xs text-center space-y-5">
@@ -1709,10 +1761,10 @@
   <script src="js/export.js?v=6.2"></script>
   <script src="js/auth.js?v=6.2"></script>
   <script src="js/bank-import.js?v=6.2"></script>
-  <script src="js/pluggy-service.js?v=8.2"></script>
+  <script src="js/pluggy-service.js?v=8.3"></script>
   <script src="js/evolution-service.js?v=6.3"></script>
   <script src="js/notifications.js?v=6.2"></script>
   <script src="js/asaas-service.js"></script>
-  <script src="js/app.js?v=6.8"></script>
+  <script src="js/app.js?v=6.9"></script>
 </body>
 </html>

@@ -157,151 +157,195 @@ class PluggyService {
     }
   }
 
-  // Sincroniza contas e transações de um Item Conectado
+  // Calibra o saldo inicial do app com base no saldo real do banco
+  calibrateBalance(latestBalance) {
+    if (latestBalance === null || latestBalance === undefined || !window.finance || !window.db) return;
+    const allTx = window.db.getTransactions();
+    let totalNet = 0;
+    allTx.forEach(tx => {
+      if (tx.status === 'paid') {
+        const val = parseFloat(tx.amount) || 0;
+        if (tx.type === 'income') totalNet += val;
+        else totalNet -= val;
+      }
+    });
+    const calibratedInitial = (latestBalance - totalNet).toFixed(2);
+    window.db.setSettings({ initialBalance: calibratedInitial });
+  }
+
+  // Busca contas e movimentações bancárias para conciliação
+  async fetchItemTransactions(itemId) {
+    const apiKey = await this.getApiKey();
+
+    // 1. Busca detalhes do item e conector
+    const itemResp = await fetch(`${this.apiBase}/items/${itemId}`, {
+      headers: { 'X-API-KEY': apiKey }
+    });
+    const itemData = itemResp.ok ? await itemResp.json() : null;
+    const bankName = itemData?.connector?.name || 'Open Finance';
+
+    // 2. Busca contas bancárias vinculadas
+    const accountsResp = await fetch(`${this.apiBase}/accounts?itemId=${itemId}`, {
+      headers: { 'X-API-KEY': apiKey }
+    });
+
+    if (!accountsResp.ok) {
+      throw new Error(`Falha ao buscar contas bancárias (HTTP ${accountsResp.status})`);
+    }
+
+    const accountsData = await accountsResp.json();
+    const accounts = accountsData.results || [];
+    let latestBalance = null;
+    const rawTransactions = [];
+
+    for (const acc of accounts) {
+      if (acc.balance !== undefined && acc.balance !== null) {
+        latestBalance = acc.balance;
+      }
+
+      // 3. Busca transações da conta via Pluggy v2 (cursor-based pagination)
+      let txUrl = `${this.apiBase}/v2/transactions?accountId=${acc.id}`;
+      while (txUrl) {
+        const txResp = await fetch(txUrl, {
+          headers: { 'X-API-KEY': apiKey }
+        });
+
+        if (!txResp.ok) {
+          console.warn(`[Pluggy v2] Falha ao buscar transações (HTTP ${txResp.status}) na URL: ${txUrl}`);
+          break;
+        }
+
+        const txData = await txResp.json();
+        if (Array.isArray(txData.results)) {
+          rawTransactions.push(...txData.results);
+        }
+
+        if (txData.next && rawTransactions.length < 2000) {
+          txUrl = `${this.apiBase}/v2/transactions${txData.next}`;
+        } else {
+          txUrl = null;
+        }
+      }
+    }
+
+    const structuredTxs = [];
+    const seenKeys = new Set();
+    for (const t of rawTransactions) {
+      const isExpense = t.type === 'DEBIT' || t.amount < 0;
+      const type = isExpense ? 'expense' : 'income';
+      const amount = Math.abs(t.amount || 0);
+      if (amount === 0) continue;
+
+      const dateStr = t.date ? t.date.substring(0, 10) : new Date().toISOString().substring(0, 10);
+      const desc = (t.description || 'Movimentação Bancária').trim();
+
+      const dedupKey = `${dateStr}|${amount.toFixed(2)}|${type}|${desc.toLowerCase()}`;
+      if (seenKeys.has(dedupKey)) continue;
+      seenKeys.add(dedupKey);
+
+      let category = t.category || (isExpense ? 'Outros' : 'Serviços');
+      if (desc.toLowerCase().includes('pix') && type === 'income') category = 'Serviços';
+      else if (desc.toLowerCase().includes('posto') || desc.toLowerCase().includes('combust')) category = 'Transporte';
+      else if (desc.toLowerCase().includes('super') || desc.toLowerCase().includes('mercado')) category = 'Alimentação';
+
+      structuredTxs.push({
+        id: `tx_pluggy_${t.id}`,
+        type: type,
+        description: desc,
+        amount: amount,
+        category: category,
+        paymentMethod: bankName,
+        date: dateStr,
+        dueDate: dateStr,
+        status: 'paid',
+        notes: `Sincronizado via Pluggy Open Finance (${bankName})`,
+        externalId: `pluggy_${t.id}`
+      });
+    }
+
+    // 4. Identifica o que já existe no banco de dados local
+    const existingTxs = window.db ? window.db.getTransactions() : [];
+    const existingExtIds = new Set(existingTxs.map(t => t.externalId).filter(Boolean));
+    const existingPaidSignatures = new Set(
+      existingTxs
+        .filter(t => t.status === 'paid')
+        .map(t => `${t.date}|${parseFloat(t.amount).toFixed(2)}|${t.type}|${(t.description || '').trim().toLowerCase()}`)
+    );
+
+    const unprocessedTxs = [];
+    for (const st of structuredTxs) {
+      if (existingExtIds.has(st.externalId)) continue;
+      const sig = `${st.date}|${st.amount.toFixed(2)}|${st.type}|${st.description.toLowerCase()}`;
+      if (existingPaidSignatures.has(sig)) continue;
+      unprocessedTxs.push(st);
+    }
+
+    // 5. Cruza com as contas pendentes para sugerir conciliação inteligente
+    const pendingTxs = existingTxs.filter(t => t.status === 'pending');
+    const matchedPendingIds = new Set();
+
+    const candidates = unprocessedTxs.map(cand => {
+      let bestMatch = null;
+      let minDiffDays = 999999;
+
+      for (const p of pendingTxs) {
+        if (matchedPendingIds.has(p.id)) continue;
+        if (p.type !== cand.type) continue;
+
+        const pAmt = parseFloat(p.amount) || 0;
+        if (Math.abs(pAmt - cand.amount) > 0.01) continue;
+
+        const pDate = new Date(p.dueDate || p.date);
+        const cDate = new Date(cand.date);
+        const diffDays = Math.abs((cDate - pDate) / (1000 * 60 * 60 * 24));
+
+        if (diffDays <= 45 && diffDays < minDiffDays) {
+          minDiffDays = diffDays;
+          bestMatch = p;
+        }
+      }
+
+      if (bestMatch) {
+        matchedPendingIds.add(bestMatch.id);
+      }
+
+      return {
+        ...cand,
+        suggestedMatch: bestMatch
+      };
+    });
+
+    return {
+      bankName,
+      latestBalance,
+      candidates,
+      totalRaw: rawTransactions.length
+    };
+  }
+
+  // Sincroniza contas e abre modal de conciliação para um Item Conectado
   async syncItem(itemId) {
     try {
-      const apiKey = await this.getApiKey();
+      const res = await this.fetchItemTransactions(itemId);
+      if (!res) return { success: false };
 
-      // 1. Busca detalhes do item e conector
-      const itemResp = await fetch(`${this.apiBase}/items/${itemId}`, {
-        headers: { 'X-API-KEY': apiKey }
-      });
-      const itemData = itemResp.ok ? await itemResp.json() : null;
-      const bankName = itemData?.connector?.name || 'Open Finance';
-
-      // 2. Busca contas bancárias vinculadas
-      const accountsResp = await fetch(`${this.apiBase}/accounts?itemId=${itemId}`, {
-        headers: { 'X-API-KEY': apiKey }
-      });
-
-      if (!accountsResp.ok) {
-        throw new Error(`Falha ao buscar contas bancárias (HTTP ${accountsResp.status})`);
-      }
-
-      const accountsData = await accountsResp.json();
-      const accounts = accountsData.results || [];
-      let totalImported = 0;
-      let latestBalance = null;
-
-      for (const acc of accounts) {
-        if (acc.balance !== undefined && acc.balance !== null) {
-          latestBalance = acc.balance;
+      if (res.candidates && res.candidates.length > 0) {
+        if (window.app && window.app.openReconciliationModal) {
+          window.app.openReconciliationModal(res.candidates, res.bankName, res.latestBalance);
         }
-
-        // 3. Busca transações da conta via Pluggy v2 (cursor-based pagination)
-        let txUrl = `${this.apiBase}/v2/transactions?accountId=${acc.id}`;
-        let rawTransactions = [];
-
-        while (txUrl) {
-          const txResp = await fetch(txUrl, {
-            headers: { 'X-API-KEY': apiKey }
-          });
-
-          if (!txResp.ok) {
-            console.warn(`[Pluggy v2] Falha ao buscar transações (HTTP ${txResp.status}) na URL: ${txUrl}`);
-            break;
-          }
-
-          const txData = await txResp.json();
-          if (Array.isArray(txData.results)) {
-            rawTransactions.push(...txData.results);
-          }
-
-          // Segue para a próxima página de resultados se houver
-          if (txData.next && rawTransactions.length < 2000) {
-            txUrl = `${this.apiBase}/v2/transactions${txData.next}`;
-          } else {
-            txUrl = null;
+        return { success: true, candidatesCount: res.candidates.length };
+      } else {
+        if (res.latestBalance !== null) {
+          this.calibrateBalance(res.latestBalance);
+          await window.db.syncWithServer().catch(() => {});
+          if (window.app) {
+            window.app.renderCurrentTab();
+            window.app.updateHeaderStats();
           }
         }
-
-        const structuredTxs = [];
-        const seenKeys = new Set();
-        for (const t of rawTransactions) {
-          const isExpense = t.type === 'DEBIT' || t.amount < 0;
-          const type = isExpense ? 'expense' : 'income';
-          const amount = Math.abs(t.amount || 0);
-          if (amount === 0) continue;
-
-          const dateStr = t.date ? t.date.substring(0, 10) : new Date().toISOString().substring(0, 10);
-          const desc = (t.description || 'Movimentação Bancária').trim();
-
-          const dedupKey = `${dateStr}|${amount.toFixed(2)}|${type}|${desc.toLowerCase()}`;
-          if (seenKeys.has(dedupKey)) continue;
-          seenKeys.add(dedupKey);
-          
-          let category = t.category || (isExpense ? 'Outros' : 'Serviços');
-          if (desc.toLowerCase().includes('pix') && type === 'income') category = 'Serviços';
-          else if (desc.toLowerCase().includes('posto') || desc.toLowerCase().includes('combust')) category = 'Transporte';
-          else if (desc.toLowerCase().includes('super') || desc.toLowerCase().includes('mercado')) category = 'Alimentação';
-
-          structuredTxs.push({
-            id: `tx_pluggy_${t.id}`,
-            type: type,
-            description: desc,
-            amount: amount,
-            category: category,
-            paymentMethod: bankName,
-            date: dateStr,
-            dueDate: dateStr,
-            status: 'paid',
-            notes: `Sincronizado via Pluggy Open Finance (${bankName})`,
-            externalId: `pluggy_${t.id}`
-          });
-        }
-
-        if (structuredTxs.length > 0) {
-          const apiUrl = window.db.getApiUrl();
-          if (apiUrl) {
-            const batchResp = await fetch(`${apiUrl}/transactions/batch`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ transactions: structuredTxs })
-            });
-            if (batchResp.ok) {
-              const bData = await batchResp.json();
-              totalImported += (bData.count !== undefined ? bData.count : structuredTxs.length);
-            }
-          } else {
-            for (const st of structuredTxs) {
-              window.db.addTransaction(st);
-            }
-            totalImported += structuredTxs.length;
-          }
-        }
+        alert(`✅ ${res.bankName} sincronizado!\n\nTodas as movimentações já estão conciliadas e o saldo foi 100% atualizado.`);
+        return { success: true, count: 0 };
       }
-
-      // 4. Sincroniza banco local com o servidor
-      await window.db.syncWithServer();
-
-      // Calibra o saldo inicial para bater exatamente com o saldo real do banco
-      if (latestBalance !== null && window.finance) {
-        const allTx = window.db.getTransactions();
-        let totalNet = 0;
-        allTx.forEach(tx => {
-          if (tx.status === 'paid') {
-            const val = parseFloat(tx.amount) || 0;
-            if (tx.type === 'income') totalNet += val;
-            else totalNet -= val;
-          }
-        });
-        const calibratedInitial = (latestBalance - totalNet).toFixed(2);
-        window.db.setSettings({ initialBalance: calibratedInitial });
-      }
-
-      if (window.app) {
-        window.app.renderCurrentTab();
-        window.app.updateHeaderStats();
-      }
-
-      if (window.confetti) window.confetti({ particleCount: 70, spread: 80 });
-
-      let msg = `✅ ${bankName} sincronizado com sucesso!\n\nForam importadas ${totalImported} movimentações no seu banco de dados.`;
-      if (latestBalance !== null) {
-        msg += `\nSaldo real na conta: R$ ${latestBalance.toFixed(2).replace('.', ',')}`;
-      }
-      alert(msg);
-      return { success: true, count: totalImported };
     } catch (err) {
       console.error('Erro na sincronização Pluggy:', err);
       alert('❌ Falha ao sincronizar movimentações: ' + err.message);
@@ -309,19 +353,62 @@ class PluggyService {
     }
   }
 
-  // Sincroniza todas as contas já conectadas
-  async syncAll() {
-    const settings = window.db.getSettings();
-    const items = settings.pluggyItems || [];
-    if (items.length === 0) {
-      alert('Nenhuma conta bancária conectada via Pluggy ainda. Clique em "Conectar Banco (Pluggy)" para conectar!');
-      return;
-    }
+  // Sincroniza todas as contas já conectadas com conciliação inteligente
+  async syncAll(btn) {
+    const icon = btn ? btn.querySelector('[data-lucide="refresh-cw"], .lucide-refresh-cw') : null;
+    if (icon) icon.classList.add('animate-spin');
 
-    let total = 0;
-    for (const it of items) {
-      const res = await this.syncItem(it.id);
-      if (res && res.count) total += res.count;
+    try {
+      const settings = window.db ? window.db.getSettings() : {};
+      let items = settings.pluggyItems || [];
+      if (items.length === 0 && settings.pluggyItemId) {
+        items = [{ id: settings.pluggyItemId, connector: 'Open Finance' }];
+      }
+      if (items.length === 0) {
+        items = [{ id: '72fefe33-e3ec-46ad-9a76-76d5d8f87c3a', connector: 'MeuPluggy' }];
+      }
+
+      let allCandidates = [];
+      let latestBankBalance = null;
+      let bankNames = [];
+
+      for (const it of items) {
+        const res = await this.fetchItemTransactions(it.id);
+        if (res) {
+          if (res.candidates && res.candidates.length > 0) {
+            allCandidates.push(...res.candidates);
+          }
+          if (res.latestBalance !== null) {
+            latestBankBalance = res.latestBalance;
+          }
+          if (res.bankName && !bankNames.includes(res.bankName)) {
+            bankNames.push(res.bankName);
+          }
+        }
+      }
+
+      const combinedBankName = bankNames.join(', ') || 'Open Finance';
+
+      if (allCandidates.length > 0) {
+        if (window.app && window.app.openReconciliationModal) {
+          window.app.openReconciliationModal(allCandidates, combinedBankName, latestBankBalance);
+        }
+      } else {
+        if (latestBankBalance !== null) {
+          this.calibrateBalance(latestBankBalance);
+          await window.db.syncWithServer().catch(() => {});
+          if (window.app) {
+            window.app.renderCurrentTab();
+            window.app.updateHeaderStats();
+          }
+        }
+        alert(`✅ ${combinedBankName} sincronizado!\n\nTodas as movimentações já estão conciliadas e o saldo está 100% atualizado.`);
+      }
+    } catch (err) {
+      console.error('Erro na sincronização Pluggy:', err);
+      alert('❌ Falha ao sincronizar movimentações: ' + err.message);
+    } finally {
+      if (icon) icon.classList.remove('animate-spin');
     }
   }
 
