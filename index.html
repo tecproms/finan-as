@@ -554,6 +554,16 @@
         <div class="flex items-center justify-between pt-1 text-xs">
           <span id="finances-count" class="text-slate-400 font-medium">0 lançamentos</span>
           <div class="flex items-center flex-wrap gap-2">
+            <!-- Botões Rápidos de Previsão: A Receber e A Pagar -->
+            <button type="button" id="btn-filter-pending-income" onclick="app.quickFilterPending('income')" class="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 font-semibold transition-all shadow-sm" title="Filtrar contas previstas a receber (Pendentes)">
+              <i data-lucide="arrow-down-left" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span>A Receber</span>
+            </button>
+            <button type="button" id="btn-filter-pending-expense" onclick="app.quickFilterPending('expense')" class="px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1.5 font-semibold transition-all shadow-sm" title="Filtrar contas previstas a pagar (Pendentes)">
+              <i data-lucide="arrow-up-right" class="w-3.5 h-3.5 text-rose-400"></i>
+              <span>A Pagar</span>
+            </button>
+
             <label class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 font-medium transition-colors cursor-pointer" title="Importar arquivo de extrato bancário (.OFX ou .CSV de qualquer banco)">
               <i data-lucide="file-up" class="w-3.5 h-3.5 text-blue-400"></i>
               <span class="hidden sm:inline">Importar Extrato</span>
@@ -1846,6 +1856,6 @@
   <script src="js/evolution-service.js?v=6.3"></script>
   <script src="js/notifications.js?v=6.2"></script>
   <script src="js/asaas-service.js"></script>
-  <script src="js/app.js?v=7.4"></script>
+  <script src="js/app.js?v=7.5"></script>
 </body>
 </html>

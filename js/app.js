@@ -751,6 +751,28 @@ class App {
       }
     }
 
+    // Atualiza destaque visual dos botões rápidos A Receber e A Pagar
+    const curType = this.activeCustomFilter ? this.activeCustomFilter.type : filterType;
+    const curStatus = this.activeCustomFilter ? this.activeCustomFilter.status : filterStatus;
+    const btnIncome = document.getElementById('btn-filter-pending-income');
+    const btnExpense = document.getElementById('btn-filter-pending-expense');
+
+    if (btnIncome) {
+      if (curType === 'income' && curStatus === 'pending') {
+        btnIncome.className = 'px-2.5 py-1.5 rounded-xl bg-emerald-500 text-white font-bold border border-emerald-400 flex items-center gap-1.5 shadow-sm shadow-emerald-500/30 transition-all';
+      } else {
+        btnIncome.className = 'px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 font-semibold transition-all shadow-sm';
+      }
+    }
+
+    if (btnExpense) {
+      if (curType === 'expense' && curStatus === 'pending') {
+        btnExpense.className = 'px-2.5 py-1.5 rounded-xl bg-rose-500 text-white font-bold border border-rose-400 flex items-center gap-1.5 shadow-sm shadow-rose-500/30 transition-all';
+      } else {
+        btnExpense.className = 'px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1.5 font-semibold transition-all shadow-sm';
+      }
+    }
+
     if (searchQuery.trim()) {
       list = list.filter(t => 
         (t.description && t.description.toLowerCase().includes(searchQuery)) ||
@@ -3036,6 +3058,27 @@ class App {
     alert(`✅ ${scheduledCount} lançamentos futuros de "${name}" gerados com sucesso para os próximos 3 meses!`);
     this.closeRecurringModal();
     this.renderCurrentTab();
+  }
+
+  // Filtro rápido de previsão: A Receber ou A Pagar
+  quickFilterPending(type) {
+    if (this.activeCustomFilter) {
+      this.clearCustomFilter();
+    }
+
+    const typeEl = document.getElementById('finance-filter-type');
+    const statusEl = document.getElementById('finance-filter-status');
+    if (!typeEl || !statusEl) return;
+
+    if (typeEl.value === type && statusEl.value === 'pending') {
+      typeEl.value = 'all';
+      statusEl.value = 'all';
+    } else {
+      typeEl.value = type;
+      statusEl.value = 'pending';
+    }
+
+    this.renderFinances();
   }
 }
 

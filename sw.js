@@ -1,5 +1,5 @@
 // Service Worker - FinControl Pro
-const CACHE_NAME = 'fincontrol-v22';
+const CACHE_NAME = 'fincontrol-v23';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
