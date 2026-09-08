@@ -179,6 +179,7 @@
           </div>
           <p id="dash-balance" class="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-white">R$ 0,00</p>
           <span id="dash-balance-subtext" class="text-[11px] text-slate-400 mt-1 truncate">Saldo consolidado da conta</span>
+          <div id="dash-multi-banks-container" class="mt-2 flex flex-wrap gap-1 hidden"></div>
         </div>
 
         <!-- Receitas Previstas -->
@@ -370,6 +371,51 @@
         </div>
       </div>
 
+      <!-- Painel Integrado Open Finance: Cartões de Crédito & Reserva / Investimentos -->
+      <div id="dash-open-finance-panel" class="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+        <!-- Card 1: Faturas de Cartão de Crédito -->
+        <div id="dash-credit-cards-box" class="p-5 rounded-2xl glass-panel border border-slate-700/60 space-y-3.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
+                <i data-lucide="credit-card" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-white">Cartões de Crédito & Faturas</h3>
+                <p class="text-[11px] text-slate-400">Limites, fechamento e fatura atual sincronizados via Pluggy</p>
+              </div>
+            </div>
+            <button onclick="window.pluggyService.syncAll(this)" title="Sincronizar cartões" class="text-slate-400 hover:text-emerald-400 p-1.5 rounded-lg hover:bg-slate-800 transition-colors">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+          <div id="dash-credit-cards-list" class="space-y-2.5">
+            <!-- Populado via app.renderOpenFinanceWidgets() -->
+          </div>
+        </div>
+
+        <!-- Card 2: Reserva de Emergência & Investimentos -->
+        <div id="dash-investments-box" class="p-5 rounded-2xl glass-panel border border-slate-700/60 space-y-3.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+                <i data-lucide="shield-check" class="w-4 h-4"></i>
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-white">Reserva de Emergência & Investimentos</h3>
+                <p class="text-[11px] text-slate-400">Patrimônio protegido, separado do saldo de giro diário</p>
+              </div>
+            </div>
+            <button onclick="app.toggleInvestmentsVisibility()" id="btn-toggle-investments-eye" title="Ocultar/Exibir valor" class="text-slate-400 hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-800 transition-colors">
+              <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+          <div id="dash-investments-list" class="space-y-2.5">
+            <!-- Populado via app.renderOpenFinanceWidgets() -->
+          </div>
+        </div>
+      </div>
+
       <!-- Gráficos de Fluxo e Categorias (Widescreen) -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
         <!-- Gráfico de Fluxo de Caixa Mensal -->
@@ -523,6 +569,11 @@
               <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-violet-400"></i>
               <span class="hidden sm:inline">Sincronizar Banco</span>
               <span class="sm:hidden">Sincronizar</span>
+            </button>
+            <button onclick="app.openRecurringModal()" class="px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 flex items-center gap-1.5 font-medium transition-colors" title="Detectar assinaturas e contas fixas recorrentes">
+              <i data-lucide="repeat" class="w-3.5 h-3.5 text-amber-400"></i>
+              <span class="hidden sm:inline">Assinaturas Fixas</span>
+              <span class="sm:hidden">Recorrentes</span>
             </button>
             <button onclick="window.exporter.exportTransactionsToCSV()" class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1.5 font-medium transition-colors" title="Exportar para Excel / Planilha">
               <i data-lucide="sheet" class="w-3.5 h-3.5 text-emerald-400"></i>
@@ -1751,9 +1802,39 @@
     </div>
   </div>
 
+  <!-- ==================== MODAL DE ASSINATURAS & RECORRÊNCIAS ==================== -->
+  <div id="modal-recurring-subscriptions" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-3 hidden">
+    <div class="modal-sheet w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
+        <div class="flex items-center gap-2">
+          <div class="p-2 rounded-xl bg-amber-500/20 text-amber-400">
+            <i data-lucide="repeat" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-sm text-white">Assinaturas & Contas Fixas Identificadas</h3>
+            <p class="text-[11px] text-slate-400">Detectadas pelo padrão dos seus pagamentos recorrentes</p>
+          </div>
+        </div>
+        <button onclick="app.closeRecurringModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div id="recurring-subscriptions-list" class="space-y-2.5 overflow-y-auto flex-1 custom-scrollbar pr-1">
+        <!-- Renderizado dinamicamente via JS -->
+      </div>
+
+      <div class="pt-3 border-t border-slate-800 flex items-center justify-end shrink-0">
+        <button type="button" onclick="app.closeRecurringModal()" class="py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold">
+          Fechar
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Scripts da Aplicao com Cache-Buster v6.2 -->
-  <script src="js/db.js?v=6.2"></script>
-  <script src="js/finance.js?v=6.8"></script>
+  <script src="js/db.js?v=6.3"></script>
+  <script src="js/finance.js?v=6.9"></script>
   <script src="js/agenda.js?v=6.2"></script>
   <script src="js/notes.js?v=6.2"></script>
   <script src="js/chat-nlp.js?v=6.3"></script>
@@ -1761,10 +1842,10 @@
   <script src="js/export.js?v=6.2"></script>
   <script src="js/auth.js?v=6.2"></script>
   <script src="js/bank-import.js?v=6.2"></script>
-  <script src="js/pluggy-service.js?v=8.5"></script>
+  <script src="js/pluggy-service.js?v=8.6"></script>
   <script src="js/evolution-service.js?v=6.3"></script>
   <script src="js/notifications.js?v=6.2"></script>
   <script src="js/asaas-service.js"></script>
-  <script src="js/app.js?v=7.3"></script>
+  <script src="js/app.js?v=7.4"></script>
 </body>
 </html>

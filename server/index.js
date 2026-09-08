@@ -470,6 +470,9 @@ app.get('/api/settings', async (req, res) => {
     if (r.pluggy_items) resp.pluggyItems = r.pluggy_items;
     if (r.pluggy_client_id) resp.pluggyClientId = r.pluggy_client_id;
     if (r.pluggy_client_secret) resp.pluggyClientSecret = r.pluggy_client_secret;
+    if (r.pluggy_cards) resp.pluggyCards = r.pluggy_cards;
+    if (r.pluggy_investments) resp.pluggyInvestments = r.pluggy_investments;
+    if (r.pluggy_last_sync) resp.pluggyLastSync = r.pluggy_last_sync;
     if (r.initial_balance !== undefined && r.initial_balance !== null) resp.initialBalance = r.initial_balance;
     if (r.evolution_settings) resp.evolution = r.evolution_settings;
     res.json(resp);
@@ -947,7 +950,277 @@ app.all('/api/mercadopago/webhook', async (req, res) => {
   }
 });
 
-// Endpoint Webhook Oficial da Pluggy Open Finance
+// ==========================================
+// 7.1 MOTOR DE SINCRONIZAÇÃO PLUGGY OPEN FINANCE (BACKEND)
+// ==========================================
+
+async function executePluggySync(customItemId = null) {
+  try {
+    const sRes = await query('SELECT pluggy_client_id, pluggy_client_secret, pluggy_items FROM app_settings WHERE id = $1', ['default']);
+    const s = sRes.rows[0] || {};
+    const clientId = (s.pluggy_client_id || '050ca994-3522-47e6-8571-d7582767173f').trim();
+    const clientSecret = (s.pluggy_client_secret || '-kq-NqVfPS7Yt4IxRzHWrTixx2veW03aAvBLyj2OaME').trim();
+
+    let items = s.pluggy_items;
+    if (typeof items === 'string') {
+      try { items = JSON.parse(items); } catch (_) { items = []; }
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      items = [{ id: '72fefe33-e3ec-46ad-9a76-76d5d8f87c3a', connector: 'MeuPluggy' }];
+    }
+
+    if (customItemId) {
+      if (!items.find(i => i.id === customItemId)) {
+        items.push({ id: customItemId, connector: 'Item Pluggy' });
+      }
+    }
+
+    // 1. Autenticação na API Pluggy
+    const authResp = await fetch('https://api.pluggy.ai/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId, clientSecret })
+    });
+    if (!authResp.ok) {
+      throw new Error(`Falha na autenticação Pluggy: HTTP ${authResp.status}`);
+    }
+    const authData = await authResp.json();
+    const apiKey = authData.apiKey;
+
+    let totalImported = 0;
+    let totalReconciled = 0;
+    let latestBalancesByBank = [];
+    let detectedCards = [];
+    let detectedInvestments = [];
+
+    for (const item of items) {
+      // 2. Busca contas do item
+      const accResp = await fetch(`https://api.pluggy.ai/accounts?itemId=${item.id}`, {
+        headers: { 'X-API-KEY': apiKey }
+      });
+      if (!accResp.ok) continue;
+      const accData = await accResp.json();
+      const accounts = accData.results || [];
+
+      for (const acc of accounts) {
+        // Se for cartão de crédito (type === 'CREDIT')
+        if (acc.type === 'CREDIT') {
+          detectedCards.push({
+            id: acc.id,
+            itemId: item.id,
+            bankName: item.connector || 'Cartão',
+            name: acc.name || 'Cartão de Crédito',
+            number: acc.number || '',
+            balance: Math.abs(acc.balance || 0),
+            currencyCode: acc.currencyCode || 'BRL',
+            creditLimit: acc.creditData?.creditLimit || 0,
+            availableCreditLimit: acc.creditData?.availableCreditLimit || 0,
+            balanceCloseDate: acc.creditData?.balanceCloseDate || null,
+            balanceDueDate: acc.creditData?.balanceDueDate || null,
+            minimumPayment: acc.creditData?.minimumPayment || 0
+          });
+        }
+
+        // Saldo de conta corrente / poupança
+        if (acc.type === 'BANK' && acc.balance !== undefined && acc.balance !== null) {
+          latestBalancesByBank.push({
+            bankName: item.connector || 'Conta',
+            balance: acc.balance
+          });
+        }
+
+        // 3. Busca transações recentes da conta
+        let txUrl = `https://api.pluggy.ai/v2/transactions?accountId=${acc.id}`;
+        let rawTxs = [];
+        let pageCount = 0;
+        while (txUrl && pageCount < 3) {
+          pageCount++;
+          const txResp = await fetch(txUrl, { headers: { 'X-API-KEY': apiKey } });
+          if (!txResp.ok) break;
+          const txData = await txResp.json();
+          if (Array.isArray(txData.results)) rawTxs.push(...txData.results);
+          txUrl = txData.next ? `https://api.pluggy.ai/v2/transactions${txData.next}` : null;
+        }
+
+        // 4. Processa e concilia cada transação
+        for (const t of rawTxs) {
+          const isExpense = t.type === 'DEBIT' || t.amount < 0;
+          const txType = isExpense ? 'expense' : 'income';
+          const amount = Math.abs(t.amount || 0);
+          if (amount === 0) continue;
+
+          const dateStr = t.date ? t.date.substring(0, 10) : new Date().toISOString().substring(0, 10);
+          const desc = (t.description || 'Movimentação Bancária').trim();
+          const extId = `pluggy_${t.id}`;
+
+          // Verifica se já existe por external_id
+          const existingExt = await query('SELECT id FROM transactions WHERE external_id = $1 LIMIT 1', [extId]);
+          if (existingExt.rowCount > 0) continue;
+
+          // Verifica se já existe por assinatura idêntica já paga
+          const checkDup = await query(
+            'SELECT id FROM transactions WHERE date::text = $1 AND amount = $2 AND type = $3 AND LOWER(TRIM(description)) = LOWER(TRIM($4)) AND status = $5 LIMIT 1',
+            [dateStr, amount, txType, desc, 'paid']
+          );
+          if (checkDup.rowCount > 0) continue;
+
+          // Tenta conciliar com conta pendente com mesmo valor e vencimento próximo (+- 7 dias)
+          const pendingMatch = await query(
+            `SELECT id, description, due_date FROM transactions 
+             WHERE status = 'pending' AND type = $1 AND amount = $2 
+               AND (due_date IS NULL OR ABS(DATE_PART('day', due_date::timestamp - $3::timestamp)) <= 7)
+             ORDER BY ABS(DATE_PART('day', COALESCE(due_date, date)::timestamp - $3::timestamp)) ASC
+             LIMIT 1`,
+            [txType, amount, dateStr]
+          );
+
+          if (pendingMatch.rowCount > 0) {
+            const matchedId = pendingMatch.rows[0].id;
+            await query(
+              `UPDATE transactions 
+               SET status = 'paid', date = $1, external_id = $2, 
+                   notes = COALESCE(NULLIF(notes, ''), '') || ' [Conciliado Pluggy ' || $3 || ']'
+               WHERE id = $4`,
+              [dateStr, extId, item.connector || 'Banco', matchedId]
+            );
+            totalReconciled++;
+          } else {
+            // Lança como nova transação realizada
+            let category = t.category || (isExpense ? 'Outros' : 'Serviços');
+            const lower = desc.toLowerCase();
+            if (lower.includes('pix') && txType === 'income') category = 'Serviços';
+            else if (lower.includes('posto') || lower.includes('combust') || lower.includes('gasolina')) category = 'Transporte';
+            else if (lower.includes('super') || lower.includes('mercado') || lower.includes('alimento') || lower.includes('padaria')) category = 'Alimentação';
+            else if (lower.includes('luz') || lower.includes('energia') || lower.includes('agua') || lower.includes('internet')) category = 'Moradia';
+
+            const newId = `tx_pluggy_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+            await query(
+              `INSERT INTO transactions (id, type, description, amount, category, payment_method, date, due_date, status, notes, external_id)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'paid', $9, $10)
+               ON CONFLICT (external_id) DO NOTHING`,
+              [
+                newId, txType, desc, amount, category, 
+                item.connector || 'Open Finance', dateStr, dateStr, 
+                `Sincronizado via Pluggy (${item.connector || 'Banco'})`, extId
+              ]
+            );
+            totalImported++;
+          }
+        }
+      }
+
+      // 5. Busca investimentos do item
+      try {
+        const invResp = await fetch(`https://api.pluggy.ai/investments?itemId=${item.id}`, {
+          headers: { 'X-API-KEY': apiKey }
+        });
+        if (invResp.ok) {
+          const invData = await invResp.json();
+          const invResults = invData.results || [];
+          invResults.forEach(inv => {
+            detectedInvestments.push({
+              id: inv.id,
+              itemId: item.id,
+              bankName: item.connector || 'Banco',
+              name: inv.name || 'Investimento',
+              type: inv.type || 'FIXED_INCOME',
+              balance: parseFloat(inv.balance || inv.amount || 0),
+              currencyCode: inv.currencyCode || 'BRL',
+              rate: inv.rate || null,
+              rateType: inv.rateType || null
+            });
+          });
+        }
+      } catch (eInv) {
+        console.warn(`[Pluggy Backend] Aviso ao buscar investimentos do item ${item.id}:`, eInv.message);
+      }
+    }
+
+    // Salva cartões e investimentos em app_settings para acesso instantâneo pelo frontend
+    await query(`
+      DO $$ BEGIN
+        ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS pluggy_cards JSONB;
+        ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS pluggy_investments JSONB;
+        ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS pluggy_last_sync TIMESTAMP;
+      EXCEPTION WHEN others THEN NULL;
+      END $$;
+    `).catch(() => {});
+
+    await query(`
+      UPDATE app_settings SET 
+        pluggy_cards = $1,
+        pluggy_investments = $2,
+        pluggy_last_sync = CURRENT_TIMESTAMP
+      WHERE id = 'default'
+    `, [JSON.stringify(detectedCards), JSON.stringify(detectedInvestments)]);
+
+    // Se encontramos saldo de conta bancária, calibra o saldo inicial do banco
+    if (latestBalancesByBank.length > 0) {
+      const sumBankBalance = latestBalancesByBank.reduce((acc, b) => acc + (parseFloat(b.balance) || 0), 0);
+      const allTxResult = await query("SELECT type, amount FROM transactions WHERE status = 'paid'");
+      let totalNet = 0;
+      allTxResult.rows.forEach(row => {
+        const val = parseFloat(row.amount) || 0;
+        if (row.type === 'income') totalNet += val;
+        else totalNet -= val;
+      });
+      const calibratedInitial = (sumBankBalance - totalNet).toFixed(2);
+      await query("UPDATE app_settings SET initial_balance = $1 WHERE id = 'default'", [calibratedInitial]);
+    }
+
+    console.log(`✅ [Pluggy Backend Sync] Sucesso: ${totalImported} novos, ${totalReconciled} conciliados, ${detectedCards.length} cartões, ${detectedInvestments.length} investimentos.`);
+    return {
+      success: true,
+      totalImported,
+      totalReconciled,
+      cardsCount: detectedCards.length,
+      investmentsCount: detectedInvestments.length,
+      cards: detectedCards,
+      investments: detectedInvestments,
+      balancesByBank: latestBalancesByBank
+    };
+  } catch (err) {
+    console.error('❌ [Pluggy Backend Sync] Erro:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+// Endpoint de sincronização manual Pluggy no backend
+app.post('/api/pluggy/sync', async (req, res) => {
+  try {
+    const result = await executePluggySync(req.body.itemId);
+    if (!result.success && result.error) {
+      return res.status(500).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint para consultar Faturas de Cartão de Crédito
+app.get('/api/pluggy/cards', async (req, res) => {
+  try {
+    const r = await query('SELECT pluggy_cards FROM app_settings WHERE id = $1', ['default']);
+    const cards = r.rows[0]?.pluggy_cards || [];
+    res.json(cards);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint para consultar Reserva de Emergência e Investimentos
+app.get('/api/pluggy/investments', async (req, res) => {
+  try {
+    const r = await query('SELECT pluggy_investments FROM app_settings WHERE id = $1', ['default']);
+    const investments = r.rows[0]?.pluggy_investments || [];
+    res.json(investments);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint Webhook Oficial da Pluggy Open Finance (Recebe notificações em tempo real)
 app.post('/api/pluggy/webhook', async (req, res) => {
   // Responde imediatamente 200 OK (requisito obrigatório da Pluggy em até 5s)
   res.status(200).json({ received: true });
@@ -956,12 +1229,11 @@ app.post('/api/pluggy/webhook', async (req, res) => {
     const event = req.body || {};
     console.log('📬 [Pluggy Webhook] Evento recebido:', event.event, 'Item ID:', event.itemId);
 
-    if (event.event === 'item/created' || event.event === 'item/updated') {
+    if (event.event === 'item/created' || event.event === 'item/updated' || event.event === 'transactions/created') {
       const itemId = event.itemId;
-      if (itemId) {
-        console.log(`⚡ [Pluggy Webhook] Sincronizando contas e movimentações do item ${itemId}...`);
-        // O cliente ou background sync atualiza as transações no PostgreSQL
-      }
+      console.log(`⚡ [Pluggy Webhook] Disparando auto-sincronização do item ${itemId || 'geral'}...`);
+      const syncRes = await executePluggySync(itemId);
+      console.log('✅ [Pluggy Webhook] Sincronização em tempo real concluída:', syncRes);
     }
   } catch (err) {
     console.error('❌ [Pluggy Webhook] Erro ao processar:', err.message);
@@ -1159,6 +1431,19 @@ async function startServer() {
           // Erro silencioso se token ainda não estiver configurado
         }
       }, SYNC_INTERVAL);
+
+      // Agenda auto-sincronização periódica da Pluggy Open Finance (a cada 10 minutos)
+      const PLUGGY_SYNC_INTERVAL = 10 * 60 * 1000; // 10 minutos
+      setInterval(async () => {
+        try {
+          const res = await executePluggySync();
+          if (res && res.success && (res.totalImported > 0 || res.totalReconciled > 0)) {
+            console.log(`🔄 [Auto-Sync Pluggy Background] ${res.totalImported} novos, ${res.totalReconciled} conciliados.`);
+          }
+        } catch (e) {
+          // Erro silencioso em caso de oscilação temporária da rede
+        }
+      }, PLUGGY_SYNC_INTERVAL);
     });
   } catch (err) {
     console.error('❌ Falha ao iniciar servidor:', err.message);

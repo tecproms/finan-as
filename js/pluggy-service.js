@@ -196,11 +196,28 @@ class PluggyService {
     const accountsData = await accountsResp.json();
     const accounts = accountsData.results || [];
     let latestBalance = null;
+    const detectedCards = [];
     const rawTransactions = [];
 
     for (const acc of accounts) {
-      if (acc.balance !== undefined && acc.balance !== null) {
-        latestBalance = acc.balance;
+      if (acc.type === 'CREDIT') {
+        detectedCards.push({
+          id: acc.id,
+          itemId: itemId,
+          bankName: bankName,
+          name: acc.name || 'Cartão de Crédito',
+          number: acc.number || '',
+          balance: Math.abs(acc.balance || 0),
+          creditLimit: acc.creditData?.creditLimit || 0,
+          availableCreditLimit: acc.creditData?.availableCreditLimit || 0,
+          balanceCloseDate: acc.creditData?.balanceCloseDate || null,
+          balanceDueDate: acc.creditData?.balanceDueDate || null,
+          minimumPayment: acc.creditData?.minimumPayment || 0
+        });
+      } else {
+        if (acc.balance !== undefined && acc.balance !== null) {
+          latestBalance = acc.balance;
+        }
       }
 
       // 3. Busca transações da conta via Pluggy v2 (cursor-based pagination)
@@ -226,6 +243,32 @@ class PluggyService {
           txUrl = null;
         }
       }
+    }
+
+    // Busca investimentos vinculados ao item
+    let detectedInvestments = [];
+    try {
+      const invResp = await fetch(`${this.apiBase}/investments?itemId=${itemId}`, {
+        headers: { 'X-API-KEY': apiKey }
+      });
+      if (invResp.ok) {
+        const invData = await invResp.json();
+        (invData.results || []).forEach(inv => {
+          detectedInvestments.push({
+            id: inv.id,
+            itemId: itemId,
+            bankName: bankName,
+            name: inv.name || 'Investimento',
+            type: inv.type || 'FIXED_INCOME',
+            balance: parseFloat(inv.balance || inv.amount || 0),
+            currencyCode: inv.currencyCode || 'BRL',
+            rate: inv.rate || null,
+            rateType: inv.rateType || null
+          });
+        });
+      }
+    } catch (eInv) {
+      console.warn('Erro ao buscar investimentos:', eInv.message);
     }
 
     const structuredTxs = [];
@@ -332,9 +375,46 @@ class PluggyService {
     return {
       bankName,
       latestBalance,
+      cards: detectedCards,
+      investments: detectedInvestments,
       candidates,
       totalRaw: rawTransactions.length
     };
+  }
+
+  // Cria ou atualiza conta a pagar da fatura do cartão para aparecer no fluxo de caixa e radar
+  generateCreditCardInvoiceBill(card) {
+    if (!card || !card.balance || card.balance <= 0) return;
+    if (!window.db) return;
+
+    const dueDate = card.balanceDueDate || new Date().toISOString().split('T')[0];
+    const extId = `pluggy_card_${card.id}_${dueDate}`;
+    const allTx = window.db.getTransactions();
+
+    // Procura se já existe transação para esta fatura
+    const existing = allTx.find(t => t.externalId === extId || (t.notes && t.notes.includes(extId)));
+
+    if (existing) {
+      if (existing.status === 'pending' && Math.abs(parseFloat(existing.amount) - card.balance) > 0.01) {
+        window.db.updateTransaction(existing.id, {
+          amount: card.balance,
+          notes: `Fatura ${card.name} (${card.bankName}) atualizada via Pluggy. Limite disponível: R$ ${(card.availableCreditLimit || 0).toFixed(2)} [ID: ${extId}]`
+        });
+      }
+    } else {
+      window.db.addTransaction({
+        type: 'expense',
+        description: `Fatura ${card.name} (${card.bankName})`,
+        amount: card.balance,
+        category: 'Outros',
+        paymentMethod: 'Cartão de Crédito',
+        date: new Date().toISOString().split('T')[0],
+        dueDate: dueDate,
+        status: 'pending',
+        externalId: extId,
+        notes: `Fatura importada via Pluggy Open Finance. Fechamento: ${card.balanceCloseDate || 'N/A'}. Limite total: R$ ${(card.creditLimit || 0).toFixed(2)} [ID: ${extId}]`
+      });
+    }
   }
 
   // Sincroniza contas e abre modal de conciliação para um Item Conectado
@@ -342,6 +422,10 @@ class PluggyService {
     try {
       const res = await this.fetchItemTransactions(itemId);
       if (!res) return { success: false };
+
+      if (res.cards && res.cards.length > 0) {
+        res.cards.forEach(card => this.generateCreditCardInvoiceBill(card));
+      }
 
       if (res.candidates && res.candidates.length > 0) {
         if (window.app && window.app.openReconciliationModal) {
@@ -383,7 +467,10 @@ class PluggyService {
       }
 
       let allCandidates = [];
-      let latestBankBalance = null;
+      let allCards = [];
+      let allInvestments = [];
+      let balancesByBank = [];
+      let totalBankBalance = null;
       let bankNames = [];
 
       for (const it of items) {
@@ -393,7 +480,19 @@ class PluggyService {
             allCandidates.push(...res.candidates);
           }
           if (res.latestBalance !== null) {
-            latestBankBalance = res.latestBalance;
+            balancesByBank.push({
+              bankName: res.bankName || 'Banco',
+              balance: res.latestBalance,
+              itemId: it.id
+            });
+            totalBankBalance = (totalBankBalance === null ? 0 : totalBankBalance) + res.latestBalance;
+          }
+          if (res.cards && res.cards.length > 0) {
+            allCards.push(...res.cards);
+            res.cards.forEach(card => this.generateCreditCardInvoiceBill(card));
+          }
+          if (res.investments && res.investments.length > 0) {
+            allInvestments.push(...res.investments);
           }
           if (res.bankName && !bankNames.includes(res.bankName)) {
             bankNames.push(res.bankName);
@@ -401,13 +500,20 @@ class PluggyService {
         }
       }
 
+      // Salva dados consolidados nas configurações
+      window.db.setSettings({
+        pluggyCards: allCards,
+        pluggyInvestments: allInvestments,
+        pluggyBankBalances: balancesByBank
+      });
+
       const combinedBankName = bankNames.join(', ') || 'Open Finance';
 
-      if (latestBankBalance !== null) {
-        this.calibrateBalance(latestBankBalance);
+      if (totalBankBalance !== null) {
+        this.calibrateBalance(totalBankBalance);
         const subtext = document.getElementById('dash-balance-subtext');
         if (subtext) {
-          subtext.innerHTML = `<span class="text-emerald-400 font-medium">✅ Saldo ${combinedBankName} sincronizado: R$ ${latestBankBalance.toFixed(2).replace('.', ',')}</span>`;
+          subtext.innerHTML = `<span class="text-emerald-400 font-medium">✅ Saldo ${combinedBankName} sincronizado: R$ ${totalBankBalance.toFixed(2).replace('.', ',')}</span>`;
         }
         await window.db.syncWithServer().catch(() => {});
         if (window.app) {
@@ -416,8 +522,10 @@ class PluggyService {
         }
       }
 
-      if (window.app && window.app.openReconciliationModal) {
-        window.app.openReconciliationModal(allCandidates, combinedBankName, latestBankBalance);
+      if (window.app && window.app.openReconciliationModal && allCandidates.length > 0) {
+        window.app.openReconciliationModal(allCandidates, combinedBankName, totalBankBalance);
+      } else if (allCandidates.length === 0 && totalBankBalance !== null) {
+        alert(`✅ ${combinedBankName} sincronizado com sucesso!\n\nTodas as contas já estão conciliadas e o saldo foi atualizado.`);
       }
     } catch (err) {
       console.error('Erro na sincronização Pluggy:', err);

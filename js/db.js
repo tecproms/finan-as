@@ -137,6 +137,9 @@ class Database {
           if (serverSettings.mercadoPagoToken) merged.mercadoPagoToken = serverSettings.mercadoPagoToken;
           if (serverSettings.auth) merged.auth = serverSettings.auth;
           if (serverSettings.pluggyItems) merged.pluggyItems = serverSettings.pluggyItems;
+          if (serverSettings.pluggyCards) merged.pluggyCards = serverSettings.pluggyCards;
+          if (serverSettings.pluggyInvestments) merged.pluggyInvestments = serverSettings.pluggyInvestments;
+          if (serverSettings.pluggyLastSync) merged.pluggyLastSync = serverSettings.pluggyLastSync;
           if (serverSettings.initialBalance !== undefined) merged.initialBalance = serverSettings.initialBalance;
           if (serverSettings.evolution) merged.evolution = serverSettings.evolution;
           localStorage.setItem(DB_KEYS.SETTINGS, JSON.stringify(merged));

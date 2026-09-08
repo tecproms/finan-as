@@ -490,6 +490,9 @@ class App {
 
     // Renderiza o Radar Semanal de Caixa & Previsão
     this.renderWeeklyRadar();
+
+    // Renderiza Widgets Open Finance (Multi-Bancos, Cartões de Crédito, Investimentos)
+    this.renderOpenFinanceWidgets();
   }
 
   // Renderiza o Radar Semanal de Caixa e Previsão de Sobra / Falta
@@ -2816,6 +2819,223 @@ class App {
         }
       });
     });
+  }
+
+  // Renderiza widgets Open Finance da Pluggy: Multi-Bancos, Cartões de Crédito e Investimentos
+  renderOpenFinanceWidgets() {
+    const settings = window.db ? window.db.getSettings() : {};
+    const cards = settings.pluggyCards || [];
+    const investments = settings.pluggyInvestments || [];
+    const balances = settings.pluggyBankBalances || [];
+
+    // 1. Multi-Bancos Badges no Saldo da Dashboard
+    const multiBanksContainer = document.getElementById('dash-multi-banks-container');
+    if (multiBanksContainer) {
+      if (balances.length > 1) {
+        multiBanksContainer.innerHTML = balances.map(b => `
+          <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-800 border border-slate-700/60 text-[10px] text-slate-300 font-medium">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            ${b.bankName}: <strong class="text-white font-bold">${window.finance.formatMoney(b.balance)}</strong>
+          </span>
+        `).join('');
+        multiBanksContainer.classList.remove('hidden');
+      } else {
+        multiBanksContainer.innerHTML = '';
+        multiBanksContainer.classList.add('hidden');
+      }
+    }
+
+    // 2. Painel de Cartões de Crédito
+    const cardsContainer = document.getElementById('dash-credit-cards-list');
+    const cardsBox = document.getElementById('dash-credit-cards-box');
+    if (cardsContainer && cardsBox) {
+      if (cards.length === 0) {
+        cardsContainer.innerHTML = `
+          <div class="text-xs text-slate-400 py-3 text-center bg-slate-800/40 rounded-xl border border-slate-700/30">
+            Nenhum cartão com fatura em aberto detectado no momento.
+          </div>
+        `;
+      } else {
+        cardsContainer.innerHTML = cards.map(c => {
+          const limit = parseFloat(c.creditLimit) || 0;
+          const used = parseFloat(c.balance) || 0;
+          const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+          return `
+            <div class="p-3.5 rounded-xl bg-slate-800/70 border border-slate-700/50 space-y-2">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xs">
+                    <i data-lucide="credit-card" class="w-4 h-4"></i>
+                  </div>
+                  <div>
+                    <h4 class="text-xs font-bold text-white">${c.name}</h4>
+                    <p class="text-[10px] text-slate-400">${c.bankName} ${c.number ? '•••• ' + c.number.slice(-4) : ''}</p>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <span class="text-[10px] text-slate-400 block">Fatura Atual</span>
+                  <span class="text-xs sm:text-sm font-black text-rose-400">${window.finance.formatMoney(used)}</span>
+                </div>
+              </div>
+
+              ${limit > 0 ? `
+              <div>
+                <div class="flex justify-between text-[10px] text-slate-400 mb-1">
+                  <span>Limite Usado: ${pct}%</span>
+                  <span>Disponível: ${window.finance.formatMoney(c.availableCreditLimit || (limit - used))} de ${window.finance.formatMoney(limit)}</span>
+                </div>
+                <div class="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                  <div class="h-full ${pct > 80 ? 'bg-rose-500' : pct > 50 ? 'bg-amber-500' : 'bg-emerald-500'}" style="width: ${pct}%"></div>
+                </div>
+              </div>
+              ` : ''}
+
+              <div class="flex items-center justify-between pt-1 text-[11px] text-slate-400 border-t border-slate-700/40">
+                <span>Vencimento: <strong class="text-slate-200">${c.balanceDueDate ? window.finance.formatDate(c.balanceDueDate) : 'A definir'}</strong></span>
+                <span class="text-[10px] text-emerald-400 font-semibold">Agendado no Radar</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    // 3. Painel de Investimentos & Reserva
+    const invContainer = document.getElementById('dash-investments-list');
+    const invBox = document.getElementById('dash-investments-box');
+    if (invContainer && invBox) {
+      const isHidden = localStorage.getItem('fincontrol_hide_investments') === 'true';
+      const eyeBtn = document.getElementById('btn-toggle-investments-eye');
+      if (eyeBtn) {
+        eyeBtn.innerHTML = isHidden ? '<i data-lucide="eye-off" class="w-3.5 h-3.5"></i>' : '<i data-lucide="eye" class="w-3.5 h-3.5"></i>';
+      }
+
+      if (investments.length === 0) {
+        invContainer.innerHTML = `
+          <div class="text-xs text-slate-400 py-3 text-center bg-slate-800/40 rounded-xl border border-slate-700/30">
+            Nenhuma reserva ou investimento cadastrado nos bancos conectados.
+          </div>
+        `;
+      } else {
+        const totalInvested = investments.reduce((acc, inv) => acc + (parseFloat(inv.balance) || 0), 0);
+        invContainer.innerHTML = `
+          <div class="p-3.5 rounded-xl bg-slate-800/70 border border-slate-700/50 flex items-center justify-between mb-2">
+            <div>
+              <span class="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">Total em Reserva / Investido</span>
+              <p class="text-base sm:text-lg font-black text-emerald-400">${isHidden ? '••••••••' : window.finance.formatMoney(totalInvested)}</p>
+            </div>
+            <span class="px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">Patrimônio Seguro</span>
+          </div>
+          <div class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-0.5">
+            ${investments.map(inv => `
+              <div class="flex items-center justify-between p-2 rounded-lg bg-slate-800/50 border border-slate-700/30 text-xs">
+                <div>
+                  <span class="font-medium text-slate-200">${inv.name}</span>
+                  <span class="text-[10px] text-slate-400 block">${inv.bankName} • ${inv.type}</span>
+                </div>
+                <div class="text-right">
+                  <span class="font-bold text-white">${isHidden ? '••••' : window.finance.formatMoney(inv.balance)}</span>
+                  ${inv.rate ? `<span class="text-[9px] text-emerald-400 block">${inv.rate}% CDI</span>` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+    }
+
+    if (window.lucide && window.lucide.createIcons) {
+      window.lucide.createIcons();
+    }
+  }
+
+  // Alterna visibilidade do valor de investimentos
+  toggleInvestmentsVisibility() {
+    const isHidden = localStorage.getItem('fincontrol_hide_investments') === 'true';
+    localStorage.setItem('fincontrol_hide_investments', (!isHidden).toString());
+    this.renderOpenFinanceWidgets();
+  }
+
+  // Abre modal de Assinaturas e Recorrências Detectadas
+  openRecurringModal() {
+    const modal = document.getElementById('modal-recurring-subscriptions');
+    const container = document.getElementById('recurring-subscriptions-list');
+    if (!modal || !container) return;
+
+    const detected = window.finance ? window.finance.detectRecurringExpenses() : [];
+
+    if (detected.length === 0) {
+      container.innerHTML = `
+        <div class="text-xs text-slate-400 py-8 text-center space-y-2">
+          <i data-lucide="info" class="w-8 h-8 text-slate-500 mx-auto"></i>
+          <p class="font-medium">Nenhum gasto recorrente identificado ainda.</p>
+          <p class="text-[11px] text-slate-500">Conforme você lança ou importa despesas que se repetem todo mês (luz, água, internet, streaming), o sistema identificará o ciclo automaticamente.</p>
+        </div>
+      `;
+    } else {
+      container.innerHTML = detected.map(item => `
+        <div class="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div class="space-y-0.5">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-white text-sm">${item.name}</span>
+              <span class="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 text-[10px] font-bold border border-amber-500/30">${item.count}x recorrente</span>
+            </div>
+            <p class="text-slate-400 text-[11px]">
+              Média de <strong>${window.finance.formatMoney(item.avgAmount)}</strong> • Vencimento habitual por volta do dia <strong>${item.typicalDay}</strong>
+            </p>
+          </div>
+          <button onclick="app.scheduleRecurringMonths('${encodeURIComponent(item.name)}', ${item.avgAmount}, ${item.typicalDay}, '${encodeURIComponent(item.category)}')" class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs shrink-0 flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20">
+            <i data-lucide="calendar-plus" class="w-4 h-4"></i> Agendar Próximos 3 Meses
+          </button>
+        </div>
+      `).join('');
+    }
+
+    modal.classList.remove('hidden');
+    if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
+  }
+
+  closeRecurringModal() {
+    const modal = document.getElementById('modal-recurring-subscriptions');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  // Agenda despesa recorrente nos próximos 3 meses
+  scheduleRecurringMonths(nameEncoded, amount, dayOfMonth, categoryEncoded) {
+    const name = decodeURIComponent(nameEncoded);
+    const category = decodeURIComponent(categoryEncoded);
+    const now = new Date();
+    let scheduledCount = 0;
+
+    for (let i = 1; i <= 3; i++) {
+      const targetMonth = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const y = targetMonth.getFullYear();
+      const m = String(targetMonth.getMonth() + 1).padStart(2, '0');
+      const d = String(dayOfMonth).padStart(2, '0');
+      const dateStr = `${y}-${m}-${d}`;
+
+      // Verifica se já existe
+      const allTx = window.db.getTransactions();
+      const exists = allTx.find(t => t.description.toLowerCase().includes(name.toLowerCase()) && t.dueDate === dateStr);
+      if (!exists) {
+        window.db.addTransaction({
+          type: 'expense',
+          description: name,
+          amount: amount,
+          category: category,
+          paymentMethod: 'PIX',
+          date: dateStr,
+          dueDate: dateStr,
+          status: 'pending',
+          notes: 'Agendado automaticamente pelo módulo de Recorrências Inteligentes'
+        });
+        scheduledCount++;
+      }
+    }
+
+    alert(`✅ ${scheduledCount} lançamentos futuros de "${name}" gerados com sucesso para os próximos 3 meses!`);
+    this.closeRecurringModal();
+    this.renderCurrentTab();
   }
 }
 

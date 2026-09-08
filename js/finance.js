@@ -572,6 +572,65 @@ class FinanceModule {
       originalTotal: originalTotal
     };
   }
+
+  // Detecção Inteligente de Assinaturas e Gastos Recorrentes
+  detectRecurringExpenses() {
+    const allTx = window.db ? window.db.getTransactions() : [];
+    const paidExpenses = allTx.filter(t => t.type === 'expense' && t.status === 'paid' && t.date && parseFloat(t.amount) > 0);
+    
+    const cleanDesc = (d) => {
+      return (d || '')
+        .toLowerCase()
+        .replace(/\b(pagamento|pix|qr|compra|debito|cartao|transferencia|comercio|ltda|me|eireli|sa)\b/gi, '')
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .trim();
+    };
+
+    const groups = {};
+    for (const t of paidExpenses) {
+      const cleaned = cleanDesc(t.description);
+      if (cleaned.length < 3) continue;
+
+      let matchedKey = null;
+      for (const k of Object.keys(groups)) {
+        if (k.includes(cleaned) || cleaned.includes(k) || (cleaned.length >= 5 && k.substring(0, 5) === cleaned.substring(0, 5))) {
+          matchedKey = k;
+          break;
+        }
+      }
+      const key = matchedKey || cleaned;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
+    }
+
+    const detected = [];
+    for (const [key, items] of Object.entries(groups)) {
+      if (items.length < 2) continue;
+
+      items.sort((a, b) => new Date(a.date) - new Date(b.date));
+      const amounts = items.map(i => parseFloat(i.amount) || 0);
+      const avgAmount = amounts.reduce((a, b) => a + b, 0) / amounts.length;
+      const isConsistentAmount = amounts.every(a => Math.abs(a - avgAmount) <= avgAmount * 0.35 || Math.abs(a - avgAmount) <= 15);
+
+      if (!isConsistentAmount && items.length < 3) continue;
+
+      const days = items.map(i => parseInt(i.date.split('-')[2], 10));
+      const avgDay = Math.min(28, Math.max(1, Math.round(days.reduce((a, b) => a + b, 0) / days.length)));
+      const latest = items[items.length - 1];
+
+      detected.push({
+        name: latest.description,
+        key: key,
+        avgAmount: avgAmount,
+        typicalDay: avgDay,
+        category: latest.category || 'Assinaturas',
+        count: items.length,
+        lastDate: latest.date
+      });
+    }
+
+    return detected.sort((a, b) => b.count - a.count);
+  }
 }
 
 // Instância global
