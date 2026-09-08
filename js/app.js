@@ -497,6 +497,44 @@ class App {
     if (!window.finance || !window.finance.getWeeklyRadar) return;
     const radar = window.finance.getWeeklyRadar();
 
+    // Semana Passada
+    const elLastLabel = document.getElementById('radar-last-week-label');
+    const elLastIncome = document.getElementById('radar-last-income');
+    const elLastExpense = document.getElementById('radar-last-expense');
+    const elLastNet = document.getElementById('radar-last-net');
+    const elLastStatus = document.getElementById('radar-last-status');
+
+    if (radar.lastWeek) {
+      if (elLastLabel) elLastLabel.textContent = radar.lastWeek.label;
+      if (elLastIncome) {
+        elLastIncome.textContent = window.finance.formatMoney(radar.lastWeek.totalIncome);
+        elLastIncome.parentElement.onclick = () => this.filterFromRadar(radar.lastWeek.startStr, radar.lastWeek.endStr, 'income', 'all');
+        elLastIncome.parentElement.classList.add('cursor-pointer', 'hover:scale-[1.05]', 'transition-transform');
+      }
+      if (elLastExpense) {
+        if (radar.lastWeek.expensePending > 0) {
+          elLastExpense.innerHTML = `<span>${window.finance.formatMoney(radar.lastWeek.totalExpense)}</span> <span class="text-[10px] text-amber-400 font-semibold block">(+ ${window.finance.formatMoney(radar.lastWeek.expensePending)} em aberto)</span>`;
+        } else {
+          elLastExpense.textContent = window.finance.formatMoney(radar.lastWeek.totalExpense);
+        }
+        elLastExpense.parentElement.onclick = () => this.filterFromRadar(radar.lastWeek.startStr, radar.lastWeek.endStr, 'expense', 'all');
+        elLastExpense.parentElement.classList.add('cursor-pointer', 'hover:scale-[1.05]', 'transition-transform');
+      }
+      if (elLastNet) {
+        elLastNet.textContent = (radar.lastWeek.net >= 0 ? '+' : '') + window.finance.formatMoney(radar.lastWeek.net);
+        elLastNet.className = `text-xs sm:text-sm font-bold ${radar.lastWeek.net >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+      }
+      if (elLastStatus) {
+        if (radar.lastWeek.net > 0) {
+          elLastStatus.innerHTML = `<span class="text-emerald-400 font-semibold">Sobra Realizada: +${window.finance.formatMoney(radar.lastWeek.net)}</span>`;
+        } else if (radar.lastWeek.net < 0) {
+          elLastStatus.innerHTML = `<span class="text-rose-400 font-semibold">Déficit: -${window.finance.formatMoney(Math.abs(radar.lastWeek.net))}</span>`;
+        } else {
+          elLastStatus.innerHTML = `<span class="text-slate-400 font-medium">Equilibrado</span>`;
+        }
+      }
+    }
+
     // Esta Semana
     const elThisLabel = document.getElementById('radar-this-week-label');
     const elThisIncome = document.getElementById('radar-this-income');

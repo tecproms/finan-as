@@ -123,10 +123,11 @@ class ChatNLPModule {
     // Consulta de Radar Semanal de Caixa (Sobra, Falta e Previsão para guardar dinheiro)
     if (lower.includes('semana') || lower.includes('vai faltar') || lower.includes('guardar dinheiro') || lower.includes('sobrando') || lower.includes('radar')) {
       const radar = window.finance.getWeeklyRadar();
+      const lastNetFmt = (radar.lastWeek.net >= 0 ? '+' : '') + window.finance.formatMoney(radar.lastWeek.net);
       const thisNetFmt = (radar.thisWeek.net >= 0 ? '+' : '') + window.finance.formatMoney(radar.thisWeek.net);
       const nextNetFmt = (radar.nextWeek.net >= 0 ? '+' : '') + window.finance.formatMoney(radar.nextWeek.net);
 
-      const reply = `🧭 **Radar Semanal de Caixa & Previsão:**\n\n• **Esta Semana (${radar.thisWeek.label}):**\n  - Entradas: ${window.finance.formatMoney(radar.thisWeek.totalIncome)}\n  - Saídas: ${window.finance.formatMoney(radar.thisWeek.totalExpense)}\n  - Balanço: **${thisNetFmt}** ${radar.thisWeek.net >= 0 ? '🟢 (Sobra)' : '🔴 (Falta)'}\n\n• **Próxima Semana (${radar.nextWeek.label}):**\n  - Entradas Previstas: ${window.finance.formatMoney(radar.nextWeek.totalIncome)}\n  - Contas Previstas: ${window.finance.formatMoney(radar.nextWeek.totalExpense)}\n  - Previsão: **${nextNetFmt}** ${radar.nextWeek.net >= 0 ? '🟢 (Sobra)' : '🔴 (Faltará)'}\n\n💡 **Diagnóstico do Assistente:**\n${radar.advice.alertMessage}`;
+      const reply = `🧭 **Radar Semanal de Caixa & Previsão:**\n\n• **Semana Passada (${radar.lastWeek.label}):**\n  - Entradas: ${window.finance.formatMoney(radar.lastWeek.totalIncome)}\n  - Saídas: ${window.finance.formatMoney(radar.lastWeek.totalExpense)}\n  - Balanço: **${lastNetFmt}** ${radar.lastWeek.net >= 0 ? '🟢 (Sobra)' : '🔴 (Déficit)'}\n\n• **Semana Atual (${radar.thisWeek.label}):**\n  - Entradas Previstas: ${window.finance.formatMoney(radar.thisWeek.totalIncome)}\n  - Contas Previstas: ${window.finance.formatMoney(radar.thisWeek.totalExpense)}\n  - Previsão: **${thisNetFmt}** ${radar.thisWeek.net >= 0 ? '🟢 (Sobra)' : '🔴 (Falta)'}\n\n• **Próxima Semana (${radar.nextWeek.label}):**\n  - Entradas Previstas: ${window.finance.formatMoney(radar.nextWeek.totalIncome)}\n  - Contas Previstas: ${window.finance.formatMoney(radar.nextWeek.totalExpense)}\n  - Previsão: **${nextNetFmt}** ${radar.nextWeek.net >= 0 ? '🟢 (Sobra)' : '🔴 (Faltará)'}\n\n💡 **Diagnóstico do Assistente:**\n${radar.advice.alertMessage}`;
 
       window.db.addChatMessage({ sender: 'bot', text: reply });
       return;

@@ -437,16 +437,23 @@ class EvolutionService {
     else if (lower.includes('semana') || lower.includes('vai faltar') || lower.includes('guardar dinheiro') || lower.includes('sobrando') || lower.includes('radar')) {
       if (window.finance && window.finance.getWeeklyRadar) {
         const radar = window.finance.getWeeklyRadar();
+        const lastNetFmt = (radar.lastWeek.net >= 0 ? '+' : '') + moneyFmt(radar.lastWeek.net);
         const thisNetFmt = (radar.thisWeek.net >= 0 ? '+' : '') + moneyFmt(radar.thisWeek.net);
         const nextNetFmt = (radar.nextWeek.net >= 0 ? '+' : '') + moneyFmt(radar.nextWeek.net);
 
         reply = `🧭 *Radar Semanal de Caixa:*\n\n` +
-          `• *Esta Semana (${radar.thisWeek.label}):*\n` +
-          `  - Entradas: ${moneyFmt(radar.thisWeek.totalIncome)}\n` +
-          `  - Despesas: ${moneyFmt(radar.thisWeek.totalExpense)}\n` +
-          `  - Balanço: *${thisNetFmt}* ${radar.thisWeek.net >= 0 ? '🟢 (Sobra)' : '🔴 (Falta)'}\n\n` +
+          `• *Semana Passada (${radar.lastWeek.label}):*\n` +
+          `  - Entradas: ${moneyFmt(radar.lastWeek.totalIncome)}\n` +
+          `  - Despesas: ${moneyFmt(radar.lastWeek.totalExpense)}\n` +
+          `  - Balanço: *${lastNetFmt}* ${radar.lastWeek.net >= 0 ? '🟢 (Sobra)' : '🔴 (Déficit)'}\n\n` +
+          `• *Semana Atual (${radar.thisWeek.label}):*\n` +
+          `  - Entradas Previstas: ${moneyFmt(radar.thisWeek.totalIncome)}\n` +
+          `  - Contas Previstas: ${moneyFmt(radar.thisWeek.totalExpense)}\n` +
+          `  - Previsão: *${thisNetFmt}* ${radar.thisWeek.net >= 0 ? '🟢 (Sobra)' : '🔴 (Falta)'}\n\n` +
           `• *Próxima Semana (${radar.nextWeek.label}):*\n` +
-          `  - Previsto: *${nextNetFmt}* ${radar.nextWeek.net >= 0 ? '🟢 (Sobra)' : '🔴 (Faltará)'}\n\n` +
+          `  - Entradas Previstas: ${moneyFmt(radar.nextWeek.totalIncome)}\n` +
+          `  - Contas Previstas: ${moneyFmt(radar.nextWeek.totalExpense)}\n` +
+          `  - Previsão: *${nextNetFmt}* ${radar.nextWeek.net >= 0 ? '🟢 (Sobra)' : '🔴 (Faltará)'}\n\n` +
           `💡 *Orientação:* ${radar.advice.alertMessage}`;
       }
     }

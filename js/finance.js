@@ -299,6 +299,15 @@ class FinanceModule {
     sundayNextWeek.setDate(mondayNextWeek.getDate() + 6);
     sundayNextWeek.setHours(23, 59, 59, 999);
 
+    const mondayLastWeek = new Date(mondayThisWeek);
+    mondayLastWeek.setDate(mondayThisWeek.getDate() - 7);
+
+    const sundayLastWeek = new Date(mondayLastWeek);
+    sundayLastWeek.setDate(mondayLastWeek.getDate() + 6);
+    sundayLastWeek.setHours(23, 59, 59, 999);
+
+    const lastWeekStartStr = toYMD(mondayLastWeek);
+    const lastWeekEndStr = toYMD(sundayLastWeek);
     const thisWeekStartStr = toYMD(mondayThisWeek);
     const thisWeekEndStr = toYMD(sundayThisWeek);
     const nextWeekStartStr = toYMD(mondayNextWeek);
@@ -316,7 +325,9 @@ class FinanceModule {
     };
 
     // Calcula métricas para um intervalo de datas
-    const calculateRange = (startStr, endStr) => {
+    // isForecast = true: apenas pendentes / em aberto
+    // isForecast = false: valores realizados (pagos)
+    const calculateRange = (startStr, endStr, isForecast = true) => {
       let incomePaid = 0;
       let incomePending = 0;
       let expensePaid = 0;
@@ -337,9 +348,10 @@ class FinanceModule {
         }
       });
 
-      // Previsão de caixa: considera estritamente os lançamentos em aberto / pendentes
-      const totalIncome = incomePending;
-      const totalExpense = expensePending;
+      // Se for previsão (atual/próxima), considera lançamentos em aberto / pendentes
+      // Se for histórico realizado (semana passada), considera o que foi efetivamente recebido/pago
+      const totalIncome = isForecast ? incomePending : incomePaid;
+      const totalExpense = isForecast ? expensePending : expensePaid;
       const net = totalIncome - totalExpense; // > 0 Sobra, < 0 Falta
 
       return {
@@ -367,7 +379,14 @@ class FinanceModule {
       });
     }
 
-    const thisWeekRange = calculateRange(thisWeekStartStr, thisWeekEndStr);
+    const lastWeek = {
+      startStr: lastWeekStartStr,
+      endStr: lastWeekEndStr,
+      label: formatWeekLabel(mondayLastWeek, sundayLastWeek),
+      ...calculateRange(lastWeekStartStr, lastWeekEndStr, false)
+    };
+
+    const thisWeekRange = calculateRange(thisWeekStartStr, thisWeekEndStr, true);
     const thisWeek = {
       startStr: thisWeekStartStr,
       endStr: thisWeekEndStr,
@@ -382,7 +401,7 @@ class FinanceModule {
       startStr: nextWeekStartStr,
       endStr: nextWeekEndStr,
       label: formatWeekLabel(mondayNextWeek, sundayNextWeek),
-      ...calculateRange(nextWeekStartStr, nextWeekEndStr)
+      ...calculateRange(nextWeekStartStr, nextWeekEndStr, true)
     };
 
     // Diagnóstico e Recomendação Inteligente
@@ -446,6 +465,7 @@ class FinanceModule {
     }
 
     return {
+      lastWeek,
       thisWeek,
       nextWeek,
       advice: {
