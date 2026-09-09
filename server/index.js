@@ -1265,6 +1265,11 @@ app.post('/api/whaticket/send', async (req, res) => {
       }
     }
 
+    // Garante prefixo api- caso a URL não contenha api-
+    if (sendUrl.includes('whaticket.bascully.com.br') && !sendUrl.includes('api-whaticket.bascully.com.br')) {
+      sendUrl = sendUrl.replace('whaticket.bascully.com.br', 'api-whaticket.bascully.com.br');
+    }
+
     if (!sendToken) {
       return res.status(400).json({ success: false, error: 'Token do Whaticket não informado nem configurado.' });
     }
@@ -1384,8 +1389,8 @@ app.post('/api/evolution/webhook', async (req, res) => {
     // Busca configurações do app
     const sRes = await query('SELECT * FROM app_settings WHERE id = $1', ['default']);
     const settings = sRes.rows[0] || {};
-    const evoSettings = settings.evolution_settings || {};
-    const authPhone = (evoSettings.userPhone || '5511943137268').replace(/\D/g, '');
+    const evoSettings = settings.whaticket_settings || settings.evolution_settings || {};
+    const authPhone = (evoSettings.userPhone || '5567981203317').replace(/\D/g, '');
 
     // Se houver telefone configurado, valida autorização
     if (authPhone && !senderNumber.endsWith(authPhone.slice(-8))) {

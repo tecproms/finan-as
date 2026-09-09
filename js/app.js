@@ -1694,7 +1694,7 @@ class App {
 
       if (wUrl) wUrl.value = wCfg.apiUrl || 'https://api-whaticket.bascully.com.br';
       if (wToken) wToken.value = wCfg.token || '';
-      if (wPhone) wPhone.value = wCfg.userPhone || '5511943137268';
+      if (wPhone) wPhone.value = wCfg.userPhone || '5567981203317';
       if (wSummary) wSummary.checked = wCfg.notifySummary !== false;
       if (wApps) wApps.checked = wCfg.notifyAppointments !== false;
 
@@ -2012,7 +2012,7 @@ class App {
     if (waService) {
       const wUrl = document.getElementById('setting-whaticket-url')?.value.trim() || 'https://api-whaticket.bascully.com.br';
       const wToken = document.getElementById('setting-whaticket-token')?.value.trim() || '';
-      const wPhone = document.getElementById('setting-whaticket-phone')?.value.trim() || '5511943137268';
+      const wPhone = document.getElementById('setting-whaticket-phone')?.value.trim() || '5567981203317';
       const wSummary = document.getElementById('setting-whaticket-summary')?.checked !== false;
       const wApps = document.getElementById('setting-whaticket-appointments')?.checked !== false;
 
@@ -2063,7 +2063,7 @@ class App {
 
     const url = document.getElementById('setting-whaticket-url')?.value.trim() || 'https://api-whaticket.bascully.com.br';
     const token = document.getElementById('setting-whaticket-token')?.value.trim() || '';
-    const phone = document.getElementById('setting-whaticket-phone')?.value.trim() || '5511943137268';
+    const phone = document.getElementById('setting-whaticket-phone')?.value.trim() || '5567981203317';
 
     if (!token) {
       alert('⚠️ Por favor, informe o Token de envio do Whaticket antes de testar.\n\nVocê encontra esse token no Whaticket em: Conexões > Editar Conexão > Token.');
@@ -2072,7 +2072,7 @@ class App {
     }
 
     if (!phone) {
-      alert('⚠️ Por favor, digite o seu número de WhatsApp com DDD (ex: 5511943137268) antes de testar.');
+      alert('⚠️ Por favor, digite o seu número de WhatsApp com DDD (ex: 5567981203317) antes de testar.');
       document.getElementById('setting-whaticket-phone')?.focus();
       return;
     }

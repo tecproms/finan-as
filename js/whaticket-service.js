@@ -13,7 +13,7 @@ class WhaticketService {
     return {
       apiUrl: w.apiUrl || 'https://api-whaticket.bascully.com.br',
       token: w.token || '',
-      userPhone: w.userPhone || '5511943137268',
+      userPhone: w.userPhone || '5567981203317',
       notifySummary: w.notifySummary !== false,
       notifyAppointments: w.notifyAppointments !== false,
       autoExecuteActions: w.autoExecuteActions !== false
