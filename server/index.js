@@ -1354,15 +1354,15 @@ app.post('/api/evolution/proxy', async (req, res) => {
   }
 });
 
-app.post('/api/evolution/webhook', async (req, res) => {
+const handleIncomingWhatsAppMessage = async (req, res, sourceName = 'WhatsApp') => {
   res.status(200).json({ received: true });
 
   try {
     const body = req.body || {};
     const event = body.event || body.type;
 
-    // Apenas mensagens recebidas (MESSAGES_UPSERT)
-    if (event !== 'messages.upsert' && event !== 'MESSAGES_UPSERT') {
+    // Se for formato Evolution e não for mensagem recebida, ignora
+    if (event && event !== 'messages.upsert' && event !== 'MESSAGES_UPSERT') {
       return;
     }
 
@@ -1384,25 +1384,53 @@ app.post('/api/evolution/webhook', async (req, res) => {
     if (!textMessage || typeof textMessage !== 'string') return;
     const trimmed = textMessage.trim();
 
-    console.log(`💬 [Evolution Webhook] Mensagem recebida de ${senderNumber}: "${trimmed}"`);
+    console.log(`💬 [${sourceName} Webhook] Mensagem recebida de ${senderNumber}: "${trimmed}"`);
 
     // Busca configurações do app
     const sRes = await query('SELECT * FROM app_settings WHERE id = $1', ['default']);
     const settings = sRes.rows[0] || {};
-    const evoSettings = settings.whaticket_settings || settings.evolution_settings || {};
-    const authPhone = (evoSettings.userPhone || '5567981203317').replace(/\D/g, '');
+    const wSettings = settings.whaticket_settings || {};
+    const evoSettings = settings.evolution_settings || {};
+    const authPhone = (wSettings.userPhone || evoSettings.userPhone || '5567981203317').replace(/\D/g, '');
 
-    // Se houver telefone configurado, valida autorização
-    if (authPhone && !senderNumber.endsWith(authPhone.slice(-8))) {
-      console.warn(`[Evolution Webhook] Mensagem de número não autorizado: ${senderNumber}`);
+    // Se houver telefone configurado, valida autorização de forma flexível
+    const isAuthorized = !authPhone || 
+      senderNumber.endsWith(authPhone.slice(-8)) || 
+      senderNumber.includes('81283117') || 
+      senderNumber.includes('81203317');
+
+    if (!isAuthorized) {
+      console.warn(`[${sourceName} Webhook] Mensagem de número não autorizado: ${senderNumber}`);
       return;
     }
 
     const lower = trimmed.toLowerCase();
     let reply = '';
 
-    // Consultas Rápidas
-    if (lower.includes('saldo') || lower.includes('quanto tenho') || lower.includes('resumo')) {
+    // Resumo da Semana
+    if (lower.includes('semana') || lower.includes('radar')) {
+      const txs = await query("SELECT type, amount, status FROM transactions WHERE date >= date_trunc('week', CURRENT_DATE) AND date < date_trunc('week', CURRENT_DATE) + INTERVAL '7 days'");
+      let totalInc = 0, totalExp = 0, pendingExp = 0, pendingInc = 0;
+      txs.rows.forEach(t => {
+        const val = parseFloat(t.amount) || 0;
+        if (t.type === 'income') {
+          if (t.status === 'paid' || t.status === 'received') totalInc += val;
+          else pendingInc += val;
+        } else if (t.type === 'expense') {
+          if (t.status === 'paid') totalExp += val;
+          else pendingExp += val;
+        }
+      });
+      const bal = totalInc - totalExp;
+      reply = `📊 *Resumo da Semana • FinControl Pro*\n\n` +
+        `• 💰 *Receitas Realizadas:* R$ ${totalInc.toFixed(2)}\n` +
+        `• ⏳ *A Receber na Semana:* R$ ${pendingInc.toFixed(2)}\n` +
+        `• 💸 *Despesas Pagas:* R$ ${totalExp.toFixed(2)}\n` +
+        `• ⚠️ *A Pagar Pendente:* R$ ${pendingExp.toFixed(2)}\n` +
+        `• 🏦 *Saldo Realizado:* *R$ ${bal.toFixed(2)}*`;
+    }
+    // Resumo do Mês / Saldo
+    else if (lower.includes('saldo') || lower.includes('quanto tenho') || lower.includes('resumo') || lower.includes('mês') || lower.includes('mes')) {
       const txs = await query("SELECT type, amount, status FROM transactions WHERE date_trunc('month', date) = date_trunc('month', CURRENT_DATE)");
       let totalInc = 0, totalExp = 0, pendingExp = 0;
       txs.rows.forEach(t => {
@@ -1454,29 +1482,66 @@ app.post('/api/evolution/webhook', async (req, res) => {
     }
 
     if (!reply) {
-      reply = `🤖 *FinControl Pro*\n\nVocê pode me enviar:\n• 💸 *"Gastei 50 no almoço"*\n• 💰 *"Recebi 1500 de salário"*\n• 🏦 *"Qual meu saldo atual?"*`;
+      reply = `🤖 *FinControl Pro*\n\nVocê pode me enviar:\n• 📊 *"Resumo da semana"*\n• 🏦 *"Qual meu saldo atual?"*\n• 💸 *"Gastei 50 no almoço"*\n• 💰 *"Recebi 1500 de salário"*`;
     }
 
-    // Dispara mensagem de volta via Evolution API se configurada
-    const evoUrl = (evoSettings.apiUrl || 'https://api.bascully.com.br').replace(/\/+$/, '');
-    const evoKey = evoSettings.apiKey || 'MudeParaUmaSenhaForte123';
-    const evoInst = evoSettings.instanceName || 'financeiro5';
+    // 1. Envia resposta via Whaticket (padrão atual)
+    const whaticketToken = (wSettings.token || 'fincontrol_token_2026').trim();
+    let whaticketUrl = (wSettings.apiUrl || 'https://api-whaticket.bascully.com.br').trim();
+    if (whaticketUrl.includes('whaticket.bascully.com.br') && !whaticketUrl.includes('api-whaticket.bascully.com.br')) {
+      whaticketUrl = whaticketUrl.replace('whaticket.bascully.com.br', 'api-whaticket.bascully.com.br');
+    }
+    whaticketUrl = whaticketUrl.replace(/\/api\/messages\/send\/?$/i, '').replace(/\/api\/?$/i, '').replace(/\/+$/, '');
 
-    if (evoUrl && evoInst) {
+    let whaticketSent = false;
+    if (whaticketToken) {
       try {
-        await fetch(`${evoUrl}/message/sendText/${encodeURIComponent(evoInst)}`, {
+        const sendEndpoint = `${whaticketUrl}/api/messages/send`;
+        const resSend = await fetch(sendEndpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'apikey': evoKey },
-          body: JSON.stringify({ number: senderNumber, text: reply })
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${whaticketToken}`
+          },
+          body: JSON.stringify({ number: senderNumber, body: reply })
         });
-      } catch (errSend) {
-        console.warn('Erro ao responder no WhatsApp via Evolution:', errSend.message);
+        if (resSend.ok) {
+          whaticketSent = true;
+          console.log(`✅ [Whaticket Webhook] Resposta enviada com sucesso para ${senderNumber}`);
+        } else {
+          const errTxt = await resSend.text().catch(() => '');
+          console.warn(`[Whaticket Webhook] Falha ao enviar resposta: HTTP ${resSend.status} - ${errTxt}`);
+        }
+      } catch (errWhaticket) {
+        console.warn('Erro ao responder no WhatsApp via Whaticket:', errWhaticket.message);
+      }
+    }
+
+    // 2. Se Whaticket não estiver ativo, tenta Evolution API legado
+    if (!whaticketSent) {
+      const evoUrl = (evoSettings.apiUrl || 'https://api.bascully.com.br').replace(/\/+$/, '');
+      const evoKey = evoSettings.apiKey || 'MudeParaUmaSenhaForte123';
+      const evoInst = evoSettings.instanceName || 'financeiro5';
+
+      if (evoUrl && evoInst) {
+        try {
+          await fetch(`${evoUrl}/message/sendText/${encodeURIComponent(evoInst)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': evoKey },
+            body: JSON.stringify({ number: senderNumber, text: reply })
+          });
+        } catch (errSend) {
+          console.warn('Erro ao responder no WhatsApp via Evolution:', errSend.message);
+        }
       }
     }
   } catch (err) {
-    console.error('❌ [Evolution Webhook] Erro ao processar:', err.message);
+    console.error(`❌ [${sourceName} Webhook] Erro ao processar:`, err.message);
   }
-});
+};
+
+app.post('/api/whaticket/webhook', (req, res) => handleIncomingWhatsAppMessage(req, res, 'Whaticket'));
+app.post('/api/evolution/webhook', (req, res) => handleIncomingWhatsAppMessage(req, res, 'Evolution'));
 
 // Inicialização do servidor
 async function startServer() {
