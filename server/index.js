@@ -1486,9 +1486,21 @@ INSTRUÇÕES E REGRAS:
 1. Responda em português brasileiro de forma direta, prestativa, ágil e contextualizada com os dados acima.
 2. IMPORTANTE PARA WHATSAPP: Use negrito com apenas um asterisco (*assim*). NUNCA use dois asteriscos (**).
 3. Se o usuário fizer uma pergunta (ex: "como tá a previsão dos próximos 10 dias", "quanto tenho de saldo", "o que tenho a pagar amanhã", "resumo da semana"), responda com clareza, somando os valores correspondentes ao período solicitado e listando os itens.
-4. Se o usuário estiver informando um gasto, receita, agendamento ou baixa de conta, confirme o registro e inclua OBRIGATORIAMENTE no FINAL da resposta o bloco JSON:
+4. Se o usuário estiver informando um gasto ou receita:
+- ATENÇÃO RIGOROSA A DATAS E MESES DE INÍCIO:
+  • Se o usuário especificar um mês ou dia futuro (ex: "dia 9 iniciando mes 10", "dia 15 mes que vem", "a partir de outubro"):
+    - O mês 10 é OUTUBRO ("2026-10-09"). NUNCA lance no mês atual (setembro) se ele pediu mês 10!
+    - O formato da data no JSON é SEMPRE "YYYY-MM-DD".
+- ATENÇÃO A PARCELAMENTOS ("em 4x", "4 parcelas", "4 vezes", "4x de ..."):
+  • Defina sempre o campo "installments" com o número de parcelas (ex: 4).
+  • Se o usuário disse "245,20 em 4x" ou "245,20 parcelado em 4x": o valor total é R$ 245,20 e cada parcela é R$ 61,30 (245.20 / 4).
+    Passe: "amount": 61.30, "totalAmount": 245.20, "isPerInstallment": false.
+  • Se o usuário disse "4x de 245,20": cada parcela é R$ 245,20.
+    Passe: "amount": 245.20, "totalAmount": 980.80, "isPerInstallment": true.
+  • Para qualquer compra parcelada ou data futura, o status é SEMPRE "pending" e paymentMethod "Cartão de Crédito".
+Bloco JSON:
 \`\`\`action
-{"action": "create_transaction", "data": {"type": "expense"|"income", "description": "...", "amount": 50, "category": "Outros", "date": "YYYY-MM-DD", "status": "paid"|"pending"}}
+{"action": "create_transaction", "data": {"type": "expense"|"income", "description": "...", "amount": 61.30, "totalAmount": 245.20, "installments": 4, "isPerInstallment": false, "category": "Outros", "paymentMethod": "Cartão de Crédito", "date": "YYYY-MM-DD", "status": "pending"}}
 \`\`\`
 ou para baixa em conta pendente:
 \`\`\`action
@@ -1546,12 +1558,69 @@ ou para compromisso:
           const actObj = JSON.parse(actionMatch[1]);
           if (actObj.action === 'create_transaction' && actObj.data) {
             const d = actObj.data;
-            const txId = d.id || 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
-            await query(
-              'INSERT INTO transactions (id, type, description, amount, category, payment_method, date, due_date, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
-              [txId, d.type || 'expense', d.description || 'Lançamento via WhatsApp', parseFloat(d.amount || 0), d.category || 'Geral', d.paymentMethod || 'PIX', d.date || todayStr, d.date || todayStr, d.status || 'paid']
-            );
-            console.log(`✅ [Groq WhatsApp Action] Transação criada: ${d.description} R$ ${d.amount}`);
+            const count = parseInt(d.installments, 10) || 1;
+            const startDateStr = d.date || todayStr;
+
+            if (count > 1) {
+              const totalAmount = parseFloat(d.totalAmount || d.amount || 0);
+              const installmentAmount = parseFloat(
+                d.amount || d.installmentAmount || (d.isPerInstallment ? totalAmount : (totalAmount / count))
+              );
+              const baseDesc = (d.description || 'Despesa Parcelada')
+                .replace(/\s*\(\d+\/\d+\)$/, '')
+                .replace(/\s*em\s*\d+x/i, '')
+                .trim();
+
+              const [sYear, sMonth, sDay] = startDateStr.split('-').map(Number);
+
+              for (let i = 1; i <= count; i++) {
+                const dueYear = sYear + Math.floor((sMonth - 1 + (i - 1)) / 12);
+                const dueMonth = ((sMonth - 1 + (i - 1)) % 12) + 1;
+                const maxDays = new Date(dueYear, dueMonth, 0).getDate();
+                const dueDay = Math.min(sDay, maxDays);
+                const dateStr = `${dueYear}-${String(dueMonth).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+
+                const txId = 'tx_' + Date.now() + '_' + i + '_' + Math.random().toString(36).substr(2, 4);
+                const desc = `${baseDesc} (${i}/${count})`;
+
+                await query(
+                  'INSERT INTO transactions (id, type, description, amount, category, payment_method, date, due_date, status, installments, current_installment) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)',
+                  [
+                    txId,
+                    d.type || 'expense',
+                    desc,
+                    installmentAmount,
+                    d.category || 'Outros',
+                    d.paymentMethod || 'Cartão de Crédito',
+                    dateStr,
+                    dateStr,
+                    d.status || 'pending',
+                    count,
+                    i
+                  ]
+                );
+              }
+              console.log(`✅ [Groq WhatsApp Action] Parcelamento criado com sucesso: ${count}x de R$ ${installmentAmount.toFixed(2)} iniciando em ${startDateStr}`);
+            } else {
+              const txId = d.id || 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+              await query(
+                'INSERT INTO transactions (id, type, description, amount, category, payment_method, date, due_date, status, installments, current_installment) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)',
+                [
+                  txId,
+                  d.type || 'expense',
+                  d.description || 'Lançamento via WhatsApp',
+                  parseFloat(d.amount || 0),
+                  d.category || 'Geral',
+                  d.paymentMethod || 'PIX',
+                  startDateStr,
+                  startDateStr,
+                  d.status || 'paid',
+                  1,
+                  1
+                ]
+              );
+              console.log(`✅ [Groq WhatsApp Action] Transação criada: ${d.description} R$ ${d.amount} em ${startDateStr}`);
+            }
           } else if (actObj.action === 'settle_transaction' && actObj.data && actObj.data.id) {
             await query('UPDATE transactions SET status = $1 WHERE id = $2', ['paid', actObj.data.id]);
             console.log(`✅ [Groq WhatsApp Action] Baixa na conta ID ${actObj.data.id}`);
