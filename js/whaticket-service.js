@@ -44,8 +44,17 @@ class WhaticketService {
   // Formata a URL base removendo barras finais
   getBaseUrl(customUrl = null) {
     const config = this.getConfig();
-    let url = customUrl || config.apiUrl || 'https://api-whaticket.bascully.com.br';
-    return url.trim().replace(/\/+$/, '');
+    let url = (customUrl || config.apiUrl || 'https://api-whaticket.bascully.com.br').trim();
+    // Se o usuário digitou sem o prefixo api- (ex: whaticket.bascully.com.br), ajusta para api-whaticket
+    if (url.includes('whaticket.bascully.com.br') && !url.includes('api-whaticket.bascully.com.br')) {
+      url = url.replace('whaticket.bascully.com.br', 'api-whaticket.bascully.com.br');
+    }
+    // Remove sufixos que o usuário possa ter copiado da documentação
+    url = url.replace(/\/api\/messages\/send\/?$/i, '')
+             .replace(/\/api\/messages\/?$/i, '')
+             .replace(/\/api\/?$/i, '')
+             .replace(/\/+$/, '');
+    return url;
   }
 
   // Envia mensagem de texto via Whaticket API
@@ -88,12 +97,17 @@ class WhaticketService {
             message: proxyJson.error || proxyJson.message || 'Erro retornado pela API do Whaticket'
           };
         }
+      } else if (proxyResp.status === 404) {
+        return {
+          success: false,
+          message: 'O endpoint do Whaticket ainda não está ativo no seu VPS. Atualize o servidor executando no terminal do VPS:\ncd /www/wwwroot/financeirotechpro && git pull origin main && pm2 restart all'
+        };
       }
     } catch (proxyErr) {
       console.warn('[Whaticket] Proxy local não respondeu, tentando envio direto:', proxyErr);
     }
 
-    // 2. Fallback: chamada direta ao Whaticket
+    // 2. Fallback: chamada direta ao Whaticket (se permitido por CORS)
     if (!token) {
       return {
         success: false,
