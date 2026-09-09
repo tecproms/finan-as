@@ -1354,6 +1354,179 @@ app.post('/api/evolution/proxy', async (req, res) => {
   }
 });
 
+// Processamento Inteligente de Mensagens do WhatsApp com a IA do Groq
+async function processWhatsAppWithGroq(userText, settings) {
+  const apiKey = (settings.groq_api_key || '').trim();
+  if (!apiKey || apiKey.length < 10) {
+    return null; // Sem chave Groq, cai para regras locais
+  }
+
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const dayOfWeek = today.toLocaleDateString('pt-BR', { weekday: 'long' });
+
+  // 1. Métricas financeiras reais do mês
+  const monthTxs = await query(
+    "SELECT type, amount, status FROM transactions WHERE date_trunc('month', date) = date_trunc('month', CURRENT_DATE)"
+  ).catch(() => ({ rows: [] }));
+
+  let totalInc = 0, totalExp = 0, pendingExp = 0, pendingInc = 0;
+  monthTxs.rows.forEach(t => {
+    const val = parseFloat(t.amount) || 0;
+    if (t.type === 'income') {
+      if (t.status === 'paid' || t.status === 'received') totalInc += val;
+      else pendingInc += val;
+    } else if (t.type === 'expense') {
+      if (t.status === 'paid') totalExp += val;
+      else pendingExp += val;
+    }
+  });
+  const currentBal = totalInc - totalExp;
+  const projectedBal = (totalInc + pendingInc) - (totalExp + pendingExp);
+
+  // 2. Contas dos próximos 15 dias e pendências
+  const upcomingTxs = await query(
+    "SELECT id, type, description, amount, date, status, category FROM transactions WHERE (status = 'pending') OR (date >= CURRENT_DATE AND date <= CURRENT_DATE + INTERVAL '15 days') ORDER BY date ASC LIMIT 30"
+  ).catch(() => ({ rows: [] }));
+
+  let pendingListText = 'Nenhuma conta pendente ou prevista encontrada.';
+  if (upcomingTxs.rows && upcomingTxs.rows.length > 0) {
+    pendingListText = upcomingTxs.rows.map(t => {
+      const dStr = t.date ? new Date(t.date).toLocaleDateString('pt-BR') : 'Sem data';
+      const kind = t.type === 'income' ? '🟢 A Receber' : '🔴 A Pagar';
+      const st = t.status === 'paid' ? 'Pago' : 'Pendente';
+      return `• [ID:${t.id}] ${dStr} - ${kind}: ${t.description} - R$ ${parseFloat(t.amount || 0).toFixed(2)} (${st})`;
+    }).join('\n');
+  }
+
+  // 3. Agenda dos próximos 7 dias
+  const upcomingApps = await query(
+    "SELECT id, title, date, time FROM appointments WHERE date >= CURRENT_DATE AND date <= CURRENT_DATE + INTERVAL '7 days' ORDER BY date ASC, time ASC LIMIT 15"
+  ).catch(() => ({ rows: [] }));
+
+  let agendaText = 'Nenhum compromisso agendado.';
+  if (upcomingApps.rows && upcomingApps.rows.length > 0) {
+    agendaText = upcomingApps.rows.map(a => {
+      const dStr = a.date ? new Date(a.date).toLocaleDateString('pt-BR') : '';
+      return `• ${dStr} às ${a.time || '--:--'} - ${a.title}`;
+    }).join('\n');
+  }
+
+  const systemPrompt = `Você é o assistente financeiro pessoal de inteligência artificial do FinControl Pro no WhatsApp.
+Hoje é ${dayOfWeek}, ${todayStr}.
+
+DADOS FINANCEIROS REAIS DO USUÁRIO:
+- Saldo Atual Realizado: R$ ${currentBal.toFixed(2)}
+- Total Receitas Recebidas no Mês: R$ ${totalInc.toFixed(2)}
+- Total Despesas Pagas no Mês: R$ ${totalExp.toFixed(2)}
+- A Pagar Pendente no Mês: R$ ${pendingExp.toFixed(2)}
+- A Receber Previsto no Mês: R$ ${pendingInc.toFixed(2)}
+- Saldo Projetado do Mês: R$ ${projectedBal.toFixed(2)}
+
+CONTAS PENDENTES E PREVISÃO DOS PRÓXIMOS 15 DIAS:
+${pendingListText}
+
+AGENDA DE COMPROMISSOS (PRÓXIMOS 7 DIAS):
+${agendaText}
+
+INSTRUÇÕES E REGRAS:
+1. Responda em português brasileiro de forma direta, prestativa, ágil e contextualizada com os dados acima.
+2. IMPORTANTE PARA WHATSAPP: Use negrito com apenas um asterisco (*assim*). NUNCA use dois asteriscos (**).
+3. Se o usuário fizer uma pergunta (ex: "como tá a previsão dos próximos 10 dias", "quanto tenho de saldo", "o que tenho a pagar amanhã", "resumo da semana"), responda com clareza, somando os valores correspondentes ao período solicitado e listando os itens.
+4. Se o usuário estiver informando um gasto, receita, agendamento ou baixa de conta, confirme o registro e inclua OBRIGATORIAMENTE no FINAL da resposta o bloco JSON:
+\`\`\`action
+{"action": "create_transaction", "data": {"type": "expense"|"income", "description": "...", "amount": 50, "category": "Outros", "date": "YYYY-MM-DD", "status": "paid"|"pending"}}
+\`\`\`
+ou para baixa em conta pendente:
+\`\`\`action
+{"action": "settle_transaction", "data": {"id": "ID_DA_CONTA"}}
+\`\`\`
+ou para compromisso:
+\`\`\`action
+{"action": "create_appointment", "data": {"title": "...", "date": "YYYY-MM-DD", "time": "HH:MM"}}
+\`\`\`
+5. Responda DIRETAMENTE ao usuário. Nunca gere tags <think> ou raciocínio interno.`;
+
+  // Modelos suportados no Groq
+  let configuredModel = (settings.groq_model || '').trim();
+  if (configuredModel.includes('llama-3.1-8b-instant')) configuredModel = 'openai/gpt-oss-120b';
+
+  let modelsToTry = [configuredModel, 'openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b'];
+  modelsToTry = [...new Set(modelsToTry.filter(m => m && !m.includes('llama-3.1-8b-instant')))];
+  if (modelsToTry.length === 0) modelsToTry = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'];
+
+  for (const model of modelsToTry) {
+    try {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userText }
+          ],
+          temperature: 0.2,
+          max_tokens: 700
+        })
+      });
+
+      if (!response.ok) {
+        console.warn(`[Groq AI WhatsApp] Modelo ${model} retornou HTTP ${response.status}`);
+        continue;
+      }
+
+      const resJson = await response.json();
+      let rawAnswer = resJson.choices && resJson.choices[0]?.message?.content;
+      if (!rawAnswer) continue;
+
+      // Limpa raciocínio interno caso o modelo emita
+      rawAnswer = rawAnswer.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+      // Detecta e processa bloco action se houver
+      const actionMatch = rawAnswer.match(/```(?:action|json)?\s*(\{[\s\S]*?\})\s*```/i);
+      if (actionMatch) {
+        try {
+          const actObj = JSON.parse(actionMatch[1]);
+          if (actObj.action === 'create_transaction' && actObj.data) {
+            const d = actObj.data;
+            const txId = d.id || 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+            await query(
+              'INSERT INTO transactions (id, type, description, amount, category, payment_method, date, due_date, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+              [txId, d.type || 'expense', d.description || 'Lançamento via WhatsApp', parseFloat(d.amount || 0), d.category || 'Geral', d.paymentMethod || 'PIX', d.date || todayStr, d.date || todayStr, d.status || 'paid']
+            );
+            console.log(`✅ [Groq WhatsApp Action] Transação criada: ${d.description} R$ ${d.amount}`);
+          } else if (actObj.action === 'settle_transaction' && actObj.data && actObj.data.id) {
+            await query('UPDATE transactions SET status = $1 WHERE id = $2', ['paid', actObj.data.id]);
+            console.log(`✅ [Groq WhatsApp Action] Baixa na conta ID ${actObj.data.id}`);
+          } else if (actObj.action === 'create_appointment' && actObj.data) {
+            const a = actObj.data;
+            const appId = a.id || 'app_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+            await query(
+              'INSERT INTO appointments (id, title, date, time, cost, location, priority, completed) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+              [appId, a.title || 'Compromisso', a.date || todayStr, a.time || '09:00', parseFloat(a.cost || 0), a.location || '', a.priority || 'medium', false]
+            );
+            console.log(`✅ [Groq WhatsApp Action] Compromisso criado: ${a.title}`);
+          }
+        } catch (actErr) {
+          console.warn('[Groq WhatsApp Action] Erro ao executar ação:', actErr.message);
+        }
+      }
+
+      // Remove bloco action da mensagem para o WhatsApp ficar limpo e elegante
+      let cleanMessage = rawAnswer.replace(/```(?:action|json)?\s*\{[\s\S]*?\}\s*```/gi, '').trim();
+      return cleanMessage;
+    } catch (err) {
+      console.warn(`[Groq AI WhatsApp] Falha ao consultar modelo ${model}:`, err.message);
+    }
+  }
+
+  return null;
+}
+
 const handleIncomingWhatsAppMessage = async (req, res, sourceName = 'WhatsApp') => {
   res.status(200).json({ received: true });
 
@@ -1393,19 +1566,42 @@ const handleIncomingWhatsAppMessage = async (req, res, sourceName = 'WhatsApp') 
     const evoSettings = settings.evolution_settings || {};
     const authPhone = (wSettings.userPhone || evoSettings.userPhone || '5567981203317').replace(/\D/g, '');
 
-    // Se houver telefone configurado, valida autorização de forma flexível
+    // Se for grupo do WhatsApp (@g.us), ignora
+    if (remoteJid.endsWith('@g.us')) return;
+
+    // Se houver telefone configurado, valida autorização de forma flexível (suporta LIDs do WhatsApp)
     const isAuthorized = !authPhone || 
       senderNumber.endsWith(authPhone.slice(-8)) || 
       senderNumber.includes('81283117') || 
-      senderNumber.includes('81203317');
+      senderNumber.includes('81203317') ||
+      senderNumber.startsWith('203259948056671') ||
+      senderNumber.length > 13;
 
     if (!isAuthorized) {
       console.warn(`[${sourceName} Webhook] Mensagem de número não autorizado: ${senderNumber}`);
       return;
     }
 
-    const lower = trimmed.toLowerCase();
+    // Se o remetente for um LID interno do WhatsApp Web/Multi-device, responde para o telefone real
+    let targetSendNumber = senderNumber;
+    if (senderNumber.length > 13 || senderNumber.startsWith('203259948056671') || !senderNumber.startsWith('55')) {
+      targetSendNumber = authPhone || '5567981203317';
+    }
+
+    // 1. Tenta processar prioritariamente via Inteligência Artificial do Groq
     let reply = '';
+    try {
+      reply = await processWhatsAppWithGroq(trimmed, settings);
+      if (reply) {
+        console.log(`🤖 [Groq AI WhatsApp] Resposta gerada com sucesso pela IA.`);
+      }
+    } catch (groqErr) {
+      console.warn(`[${sourceName} Webhook] Erro ao consultar Groq AI:`, groqErr.message);
+    }
+
+    // 2. Se a IA do Groq não respondeu ou não está configurada, utiliza o motor local de regras
+    if (!reply) {
+      const lower = trimmed.toLowerCase();
 
     // Resumo da Semana
     if (lower.includes('semana') || lower.includes('radar')) {
@@ -1481,8 +1677,9 @@ const handleIncomingWhatsAppMessage = async (req, res, sourceName = 'WhatsApp') 
       }
     }
 
-    if (!reply) {
-      reply = `🤖 *FinControl Pro*\n\nVocê pode me enviar:\n• 📊 *"Resumo da semana"*\n• 🏦 *"Qual meu saldo atual?"*\n• 💸 *"Gastei 50 no almoço"*\n• 💰 *"Recebi 1500 de salário"*`;
+      if (!reply) {
+        reply = `🤖 *FinControl Pro*\n\nVocê pode me enviar:\n• 📊 *"Resumo da semana"*\n• 🏦 *"Qual meu saldo atual?"*\n• 💸 *"Gastei 50 no almoço"*\n• 💰 *"Recebi 1500 de salário"*`;
+      }
     }
 
     // 1. Envia resposta via Whaticket (padrão atual)
@@ -1503,11 +1700,11 @@ const handleIncomingWhatsAppMessage = async (req, res, sourceName = 'WhatsApp') 
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${whaticketToken}`
           },
-          body: JSON.stringify({ number: senderNumber, body: reply })
+          body: JSON.stringify({ number: targetSendNumber, body: reply })
         });
         if (resSend.ok) {
           whaticketSent = true;
-          console.log(`✅ [Whaticket Webhook] Resposta enviada com sucesso para ${senderNumber}`);
+          console.log(`✅ [Whaticket Webhook] Resposta enviada com sucesso para ${targetSendNumber}`);
         } else {
           const errTxt = await resSend.text().catch(() => '');
           console.warn(`[Whaticket Webhook] Falha ao enviar resposta: HTTP ${resSend.status} - ${errTxt}`);
@@ -1528,7 +1725,7 @@ const handleIncomingWhatsAppMessage = async (req, res, sourceName = 'WhatsApp') 
           await fetch(`${evoUrl}/message/sendText/${encodeURIComponent(evoInst)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'apikey': evoKey },
-            body: JSON.stringify({ number: senderNumber, text: reply })
+            body: JSON.stringify({ number: targetSendNumber, text: reply })
           });
         } catch (errSend) {
           console.warn('Erro ao responder no WhatsApp via Evolution:', errSend.message);
