@@ -1354,6 +1354,59 @@ app.post('/api/evolution/proxy', async (req, res) => {
   }
 });
 
+// Funções Utilitárias de Horário Local (America/Campo_Grande - UTC-4) e Envio Whaticket
+function getCampoGrandeNow() {
+  const formatter = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Campo_Grande',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    weekday: 'long',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(new Date());
+  const map = {};
+  parts.forEach(p => map[p.type] = p.value);
+  const todayStr = `${map.year}-${map.month}-${map.day}`;
+  const hour = parseInt(map.hour, 10);
+  const minute = parseInt(map.minute, 10);
+  const currentMinutes = hour * 60 + minute;
+  const dayOfWeek = map.weekday || '';
+  const timeStr = `${map.hour}:${map.minute}`;
+  return { todayStr, currentMinutes, hour, minute, dayOfWeek, timeStr };
+}
+
+async function sendWhaticketMessageDirect(targetNumber, bodyText) {
+  try {
+    const sRes = await query('SELECT whaticket_settings FROM app_settings WHERE id = $1', ['default']).catch(() => ({ rows: [] }));
+    const wSettings = (sRes.rows[0] && sRes.rows[0].whaticket_settings) || {};
+    const whaticketToken = (wSettings.token || 'fincontrol_token_2026').trim();
+    let whaticketUrl = (wSettings.apiUrl || 'https://api-whaticket.bascully.com.br').trim();
+    if (whaticketUrl.includes('whaticket.bascully.com.br') && !whaticketUrl.includes('api-whaticket.bascully.com.br')) {
+      whaticketUrl = whaticketUrl.replace('whaticket.bascully.com.br', 'api-whaticket.bascully.com.br');
+    }
+    whaticketUrl = `${whaticketUrl.replace(/\/api\/messages\/send\/?$/i, '').replace(/\/api\/?$/i, '').replace(/\/+$/, '')}/api/messages/send`;
+
+    let cleanNum = String(targetNumber || wSettings.userPhone || '5567981283117').replace(/\D/g, '');
+    if (cleanNum.length === 10 || cleanNum.length === 11) cleanNum = '55' + cleanNum;
+
+    // Normaliza negrito para o padrão do WhatsApp (*texto*)
+    const cleanBody = String(bodyText).replace(/\*\*(.*?)\*\*/g, '*$1*');
+
+    const resSend = await fetch(whaticketUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${whaticketToken}`
+      },
+      body: JSON.stringify({ number: cleanNum, body: cleanBody })
+    });
+    return resSend.ok;
+  } catch (err) {
+    console.warn('[Whaticket Direct] Erro ao enviar mensagem:', err.message);
+    return false;
+  }
+}
+
 // Processamento Inteligente de Mensagens do WhatsApp com a IA do Groq
 async function processWhatsAppWithGroq(userText, settings) {
   const apiKey = (settings.groq_api_key || '').trim();
@@ -1361,9 +1414,9 @@ async function processWhatsAppWithGroq(userText, settings) {
     return null; // Sem chave Groq, cai para regras locais
   }
 
-  const today = new Date();
-  const todayStr = today.toISOString().split('T')[0];
-  const dayOfWeek = today.toLocaleDateString('pt-BR', { weekday: 'long' });
+  const localNow = getCampoGrandeNow();
+  const todayStr = localNow.todayStr;
+  const dayOfWeek = localNow.dayOfWeek;
 
   // 1. Métricas financeiras reais do mês
   const monthTxs = await query(
@@ -1518,6 +1571,7 @@ ou para compromisso:
 
       // Remove bloco action da mensagem para o WhatsApp ficar limpo e elegante
       let cleanMessage = rawAnswer.replace(/```(?:action|json)?\s*\{[\s\S]*?\}\s*```/gi, '').trim();
+      cleanMessage = cleanMessage.replace(/\*\*(.*?)\*\*/g, '*$1*');
       return cleanMessage;
     } catch (err) {
       console.warn(`[Groq AI WhatsApp] Falha ao consultar modelo ${model}:`, err.message);
@@ -1683,35 +1737,10 @@ const handleIncomingWhatsAppMessage = async (req, res, sourceName = 'WhatsApp') 
     }
 
     // 1. Envia resposta via Whaticket (padrão atual)
-    const whaticketToken = (wSettings.token || 'fincontrol_token_2026').trim();
-    let whaticketUrl = (wSettings.apiUrl || 'https://api-whaticket.bascully.com.br').trim();
-    if (whaticketUrl.includes('whaticket.bascully.com.br') && !whaticketUrl.includes('api-whaticket.bascully.com.br')) {
-      whaticketUrl = whaticketUrl.replace('whaticket.bascully.com.br', 'api-whaticket.bascully.com.br');
-    }
-    whaticketUrl = whaticketUrl.replace(/\/api\/messages\/send\/?$/i, '').replace(/\/api\/?$/i, '').replace(/\/+$/, '');
-
-    let whaticketSent = false;
-    if (whaticketToken) {
-      try {
-        const sendEndpoint = `${whaticketUrl}/api/messages/send`;
-        const resSend = await fetch(sendEndpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${whaticketToken}`
-          },
-          body: JSON.stringify({ number: targetSendNumber, body: reply })
-        });
-        if (resSend.ok) {
-          whaticketSent = true;
-          console.log(`✅ [Whaticket Webhook] Resposta enviada com sucesso para ${targetSendNumber}`);
-        } else {
-          const errTxt = await resSend.text().catch(() => '');
-          console.warn(`[Whaticket Webhook] Falha ao enviar resposta: HTTP ${resSend.status} - ${errTxt}`);
-        }
-      } catch (errWhaticket) {
-        console.warn('Erro ao responder no WhatsApp via Whaticket:', errWhaticket.message);
-      }
+    // 1. Envia resposta via Whaticket (padrão atual)
+    let whaticketSent = await sendWhaticketMessageDirect(targetSendNumber, reply);
+    if (whaticketSent) {
+      console.log(`✅ [Whaticket Webhook] Resposta enviada com sucesso para ${targetSendNumber}`);
     }
 
     // 2. Se Whaticket não estiver ativo, tenta Evolution API legado
@@ -1739,6 +1768,146 @@ const handleIncomingWhatsAppMessage = async (req, res, sourceName = 'WhatsApp') 
 
 app.post('/api/whaticket/webhook', (req, res) => handleIncomingWhatsAppMessage(req, res, 'Whaticket'));
 app.post('/api/evolution/webhook', (req, res) => handleIncomingWhatsAppMessage(req, res, 'Evolution'));
+
+// ==========================================
+// 8.2 MOTOR DE ALERTAS E LEMBRETES EM SEGUNDO PLANO (24/7)
+// ==========================================
+
+let lastDailySummaryDate = null;
+
+async function checkUpcomingAppointmentsBackend() {
+  try {
+    const sRes = await query('SELECT whaticket_settings FROM app_settings WHERE id = $1', ['default']).catch(() => ({ rows: [] }));
+    const wSettings = (sRes.rows[0] && sRes.rows[0].whaticket_settings) || {};
+    if (wSettings.notifyAppointments === false) return;
+    const targetPhone = wSettings.userPhone || '5567981283117';
+    if (!targetPhone) return;
+
+    const { todayStr, currentMinutes } = getCampoGrandeNow();
+
+    // Busca compromissos de hoje não concluídos e que ainda não receberam alerta
+    const res = await query(
+      "SELECT id, title, date, time, cost, location, notes FROM appointments WHERE date = $1 AND completed = false AND reminded_at IS NULL ORDER BY time ASC",
+      [todayStr]
+    );
+
+    for (const app of res.rows) {
+      if (!app.time) continue;
+      const parts = app.time.split(':').map(Number);
+      const appMinutes = parts[0] * 60 + (parts[1] || 0);
+      const diff = appMinutes - currentMinutes;
+
+      // Alerta se faltar até 15 minutos (diff <= 15)
+      // Se diff < 0 (já passou do horário hoje mas ainda não foi avisado), alerta avisando do compromisso de hoje
+      if (diff <= 15) {
+        let timeDesc = '';
+        if (diff < 0) {
+          timeDesc = `estava agendado para hoje às *${app.time}*`;
+        } else if (diff === 0) {
+          timeDesc = `começando agora às *${app.time}*`;
+        } else {
+          timeDesc = `em cerca de *${diff} minuto(s)* (às *${app.time}*)`;
+        }
+
+        const costText = parseFloat(app.cost || 0) > 0 ? `\n💰 *Custo previsto:* R$ ${parseFloat(app.cost).toFixed(2)}` : '';
+        const locText = app.location ? `\n📍 *Local:* ${app.location}` : '';
+        const noteText = app.notes ? `\n📝 *Detalhes:* ${app.notes}` : '';
+
+        const msg = `⏰ *LEMBRETE DE COMPROMISSO*\n\nSeu compromisso ${timeDesc}:\n📌 *${app.title}*${costText}${locText}${noteText}\n\n_FinControl Pro • Gestão Inteligente_`;
+
+        const sent = await sendWhaticketMessageDirect(targetPhone, msg);
+        if (sent) {
+          await query('UPDATE appointments SET reminded_at = CURRENT_TIMESTAMP WHERE id = $1', [app.id]);
+          console.log(`⏰ [Backend Agenda Alert] Notificação enviada para ${targetPhone}: ${app.title} (${app.time})`);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Backend Agenda Alert] Erro:', err.message);
+  }
+}
+
+async function checkDailyMorningSummaryBackend() {
+  try {
+    const sRes = await query('SELECT whaticket_settings FROM app_settings WHERE id = $1', ['default']).catch(() => ({ rows: [] }));
+    const wSettings = (sRes.rows[0] && sRes.rows[0].whaticket_settings) || {};
+    if (wSettings.notifySummary === false) return;
+    const targetPhone = wSettings.userPhone || '5567981283117';
+    if (!targetPhone) return;
+
+    const { todayStr, hour, minute, dayOfWeek } = getCampoGrandeNow();
+
+    // Dispara diariamente entre 08:00 e 08:15 (uma única vez por dia)
+    if (hour === 8 && minute <= 15 && lastDailySummaryDate !== todayStr) {
+      lastDailySummaryDate = todayStr;
+
+      // 1. Contas a pagar pendentes
+      const expRes = await query(
+        "SELECT description, amount, date FROM transactions WHERE type = 'expense' AND status = 'pending' AND date <= $1 ORDER BY date ASC",
+        [todayStr]
+      );
+      const pendingExpenses = expRes.rows || [];
+      const totalExp = pendingExpenses.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+
+      // 2. Contas a receber pendentes
+      const incRes = await query(
+        "SELECT description, amount, date FROM transactions WHERE type = 'income' AND status = 'pending' AND date <= $1 ORDER BY date ASC",
+        [todayStr]
+      );
+      const pendingIncomes = incRes.rows || [];
+      const totalInc = pendingIncomes.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+
+      // 3. Compromissos de hoje
+      const appRes = await query(
+        "SELECT title, time FROM appointments WHERE date = $1 AND completed = false ORDER BY time ASC",
+        [todayStr]
+      );
+      const todayApps = appRes.rows || [];
+
+      // Monta mensagem matinal
+      const dateFormatted = todayStr.split('-').reverse().join('/');
+      let msg = `☀️ *BOM DIA! RESUMO DO DIA • FINCONTROL PRO*\n📅 *${dayOfWeek.toUpperCase()}, ${dateFormatted}*\n━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+      if (pendingExpenses.length > 0) {
+        msg += `💸 *CONTAS A PAGAR:* ${pendingExpenses.length} conta(s)\n• *Total a Pagar:* R$ ${totalExp.toFixed(2)}\n`;
+        pendingExpenses.slice(0, 3).forEach(t => {
+          msg += `  ▫️ ${t.description}: R$ ${parseFloat(t.amount).toFixed(2)}\n`;
+        });
+        if (pendingExpenses.length > 3) {
+          msg += `  ▫️ _(+${pendingExpenses.length - 3} outra(s))...\n`;
+        }
+        msg += `\n`;
+      } else {
+        msg += `💸 *CONTAS A PAGAR:* Nenhuma conta pendente para hoje! 🟢\n\n`;
+      }
+
+      if (pendingIncomes.length > 0) {
+        msg += `💰 *VALORES A RECEBER:* ${pendingIncomes.length} receita(s)\n• *Total a Receber:* R$ ${totalInc.toFixed(2)}\n`;
+        pendingIncomes.slice(0, 3).forEach(t => {
+          msg += `  ▫️ ${t.description}: R$ ${parseFloat(t.amount).toFixed(2)}\n`;
+        });
+        msg += `\n`;
+      }
+
+      if (todayApps.length > 0) {
+        msg += `📅 *AGENDA DE HOJE:* ${todayApps.length} compromisso(s)\n`;
+        todayApps.forEach(a => {
+          msg += `• ⏰ *${a.time || '--:--'}* - ${a.title}\n`;
+        });
+        msg += `\n`;
+      } else {
+        msg += `📅 *AGENDA:* Nenhum compromisso agendado para hoje.\n\n`;
+      }
+
+      msg += `━━━━━━━━━━━━━━━━━━━━\n_FinControl Pro • Gestão Financeira Inteligente_`;
+
+      await sendWhaticketMessageDirect(targetPhone, msg);
+      console.log(`☀️ [Backend Resumo Matinal] Enviado com sucesso para ${targetPhone}`);
+    }
+  } catch (err) {
+    console.warn('[Backend Resumo Matinal] Erro:', err.message);
+  }
+}
 
 // Inicialização do servidor
 async function startServer() {
@@ -1777,6 +1946,22 @@ async function startServer() {
           // Erro silencioso em caso de oscilação temporária da rede
         }
       }, PLUGGY_SYNC_INTERVAL);
+
+      // Agenda verificação periódica de compromissos da agenda e resumo diário (a cada 60 segundos)
+      const ALERTS_INTERVAL = 60 * 1000; // 1 minuto
+      setInterval(async () => {
+        try {
+          await checkUpcomingAppointmentsBackend();
+          await checkDailyMorningSummaryBackend();
+        } catch (e) {
+          console.warn('[Auto-Alert Agenda/Resumo] Erro:', e.message);
+        }
+      }, ALERTS_INTERVAL);
+
+      // Verificação inicial rápida 3 segundos após a inicialização
+      setTimeout(() => {
+        checkUpcomingAppointmentsBackend().catch(() => {});
+      }, 3000);
     });
   } catch (err) {
     console.error('❌ Falha ao iniciar servidor:', err.message);

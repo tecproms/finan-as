@@ -38,9 +38,12 @@ CREATE TABLE IF NOT EXISTS appointments (
     priority VARCHAR(20) NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
     completed BOOLEAN NOT NULL DEFAULT FALSE,
     notes TEXT DEFAULT '',
+    reminded_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminded_at TIMESTAMP WITH TIME ZONE;
 
 CREATE INDEX IF NOT EXISTS idx_appointments_date ON appointments(date);
 CREATE INDEX IF NOT EXISTS idx_appointments_completed ON appointments(completed);
