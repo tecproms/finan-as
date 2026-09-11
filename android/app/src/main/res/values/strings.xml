@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">FinControl Pro</string>
-    <string name="notification_channel_name">Alertas FinControl</string>
+    <string name="app_name">Techpro Finanças</string>
+    <string name="notification_channel_name">Alertas Techpro Finanças</string>
     <string name="notification_channel_desc">Notificações de contas, despesas e lembretes de agenda</string>
 </resources>

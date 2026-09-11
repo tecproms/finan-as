@@ -1,6 +1,6 @@
 {
-  "name": "FinControl Pro - Gestão Financeira & Agenda",
-  "short_name": "FinControl",
+  "name": "Techpro Finanças - Gestão Financeira & Agenda",
+  "short_name": "Techpro Finanças",
   "description": "Controle financeiro inteligente de entradas e saídas, agenda de compromissos, anotações e assistente conversacional por chat e voz.",
   "start_url": "./index.html",
   "display": "standalone",
