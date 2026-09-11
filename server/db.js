@@ -25,23 +25,45 @@ pool.on('error', (err) => {
 
 async function initDatabase() {
   let client;
-  try {
-    client = await pool.connect();
-    console.log(`🔌 Conectado ao PostgreSQL em ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
-  } catch (initialErr) {
-    const altName = dbConfig.database.includes('ç') ? 'tecprofinancas' : 'tecprofinanças';
-    console.warn(`Tentando conexão alternativa com nome "${altName}"...`);
-    try {
-      await pool.end().catch(() => {});
-      dbConfig.database = altName;
-      dbConfig.user = altName;
-      pool = new Pool(dbConfig);
-      client = await pool.connect();
-      console.log(`🔌 Conectado com sucesso ao PostgreSQL usando "${altName}"!`);
-    } catch (secondErr) {
-      console.error('❌ Falha ao conectar ao PostgreSQL:', secondErr.message);
-      throw secondErr;
+  const candidateUsers = [
+    process.env.DB_USER,
+    'techprofinancas',
+    'techprofinaças',
+    'tecprofinancas',
+    'tecprofinanças'
+  ].filter(Boolean);
+
+  const candidatePasswords = [
+    process.env.DB_PASSWORD,
+    'yAmPnFzCGAnJnhkk',
+    'w4m25cdBHKmDNdXN'
+  ].filter(Boolean);
+
+  let connected = false;
+  let lastErr = null;
+
+  for (const u of [...new Set(candidateUsers)]) {
+    for (const p of [...new Set(candidatePasswords)]) {
+      try {
+        await pool.end().catch(() => {});
+        dbConfig.user = u;
+        dbConfig.database = u;
+        dbConfig.password = p;
+        pool = new Pool(dbConfig);
+        client = await pool.connect();
+        console.log(`🔌 Conectado com sucesso ao PostgreSQL usando "${u}"!`);
+        connected = true;
+        break;
+      } catch (err) {
+        lastErr = err;
+      }
     }
+    if (connected) break;
+  }
+
+  if (!connected) {
+    console.error('❌ Falha ao conectar ao PostgreSQL:', lastErr ? lastErr.message : 'Desconhecido');
+    throw lastErr;
   }
 
   try {
