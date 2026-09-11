@@ -7,9 +7,9 @@ require('dotenv').config();
 let dbConfig = {
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432', 10),
-  user: process.env.DB_USER || 'tecprofinanças',
-  password: process.env.DB_PASSWORD || 'w4m25cdBHKmDNdXN',
-  database: process.env.DB_NAME || 'tecprofinanças',
+  user: process.env.DB_USER || 'techprofinancas',
+  password: process.env.DB_PASSWORD || 'yAmPnFzCGAnJnhkk',
+  database: process.env.DB_NAME || 'techprofinancas',
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
