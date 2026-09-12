@@ -1,4 +1,4 @@
-﻿--
+--
 -- PostgreSQL database dump
 --
 
@@ -26,19 +26,12 @@ DROP INDEX IF EXISTS public.idx_notes_tag;
 DROP INDEX IF EXISTS public.idx_notes_pinned;
 DROP INDEX IF EXISTS public.idx_appointments_date;
 DROP INDEX IF EXISTS public.idx_appointments_completed;
-ALTER TABLE ONLY public.transactions DROP CONSTRAINT transactions_pkey;
-ALTER TABLE ONLY public.transactions DROP CONSTRAINT transactions_external_id_key;
-ALTER TABLE ONLY public.notes DROP CONSTRAINT notes_pkey;
-ALTER TABLE ONLY public.mp_sync_logs DROP CONSTRAINT mp_sync_logs_pkey;
-ALTER TABLE ONLY public.appointments DROP CONSTRAINT appointments_pkey;
-ALTER TABLE ONLY public.app_settings DROP CONSTRAINT app_settings_pkey;
-ALTER TABLE public.mp_sync_logs ALTER COLUMN id DROP DEFAULT;
-DROP TABLE IF EXISTS public.transactions;
-DROP TABLE IF EXISTS public.notes;
-DROP SEQUENCE IF EXISTS public.mp_sync_logs_id_seq;
-DROP TABLE IF EXISTS public.mp_sync_logs;
-DROP TABLE IF EXISTS public.appointments;
-DROP TABLE IF EXISTS public.app_settings;
+DROP TABLE IF EXISTS public.transactions CASCADE;
+DROP TABLE IF EXISTS public.notes CASCADE;
+DROP SEQUENCE IF EXISTS public.mp_sync_logs_id_seq CASCADE;
+DROP TABLE IF EXISTS public.mp_sync_logs CASCADE;
+DROP TABLE IF EXISTS public.appointments CASCADE;
+DROP TABLE IF EXISTS public.app_settings CASCADE;
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -1030,11 +1023,14 @@ GRANT ALL ON SCHEMA public TO "techprofincas";
 --
 
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO "techprofincas";
-
+DO $$ BEGIN
+  IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'tecprofinancas') THEN
+    GRANT ALL ON SCHEMA public TO "tecprofinancas";
+    ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO "tecprofinancas";
+  END IF;
+END $$;
 
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict jlwXexWuYygWl8xblBCXNyEgVH1RaOtnacPUdNt4XUN0Kuo4RxUsEEs5Uson9SD
 
