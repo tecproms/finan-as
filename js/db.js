@@ -73,13 +73,17 @@ class Database {
 
   // Obtém URL do servidor backend PostgreSQL se configurado
   getApiUrl() {
+    const settings = this.getSettings ? this.getSettings() : null;
+    if (settings && settings.serverApiUrl && settings.serverApiUrl.trim()) {
+      return settings.serverApiUrl.trim().replace(/\/+$/, '');
+    }
     if (typeof window !== 'undefined' && window.location && window.location.hostname) {
       const host = window.location.hostname;
       if (host !== 'localhost' && host !== '127.0.0.1' && !window.location.protocol.startsWith('file')) {
         return `${window.location.origin}/api`;
       }
     }
-    return 'http://76.13.163.214/api';
+    return 'https://financas.techproms.com.br/api';
   }
 
   // Sincroniza todos os dados com o banco de dados PostgreSQL na VPS
@@ -382,13 +386,7 @@ class Database {
         appointmentReminderEnabled: true
       };
       
-      // Auto-limpa IP offline do banco (evita travamento do navegador)
-      if (settings.serverApiUrl && settings.serverApiUrl.includes('76.13.163.214')) {
-        settings.serverApiUrl = '';
-        try { localStorage.setItem(DB_KEYS.SETTINGS, JSON.stringify(settings)); } catch (_) {}
-      }
-
-      if (!settings.serverApiUrl) settings.serverApiUrl = '';
+      if (!settings.serverApiUrl) settings.serverApiUrl = 'https://financas.techproms.com.br/api';
       if (!settings.pluggyClientId) settings.pluggyClientId = '050ca994-3522-47e6-8571-d7582767173f';
       if (!settings.pluggyClientSecret) settings.pluggyClientSecret = '-kq-NqVfPS7Yt4IxRzHWrTixx2veW03aAvBLyj2OaME';
       if (!settings.pluggyItems) settings.pluggyItems = [];

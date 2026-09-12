@@ -1638,8 +1638,9 @@ class App {
 
     // Configurações PostgreSQL (aaPanel / VPS)
     const serverUrlInput = document.getElementById('setting-server-url');
-    if (serverUrlInput) serverUrlInput.value = settings.serverApiUrl || '';
-    this.updatePgsqlStatusUI(settings.serverApiUrl || '');
+    const effectiveApiUrl = settings.serverApiUrl || (window.db ? window.db.getApiUrl() : 'https://financas.techproms.com.br/api');
+    if (serverUrlInput) serverUrlInput.value = effectiveApiUrl;
+    this.updatePgsqlStatusUI(effectiveApiUrl);
 
     // Configurações Mercado Pago
     const mpTokenInput = document.getElementById('setting-mp-token');
@@ -1733,8 +1734,8 @@ class App {
     const urlInput = document.getElementById('setting-server-url');
     let url = urlInput ? urlInput.value.trim().replace(/\/+$/, '') : '';
     if (!url) {
-      alert('Informe a URL da API do seu servidor na VPS (ex: http://76.13.163.214:3000/api).');
-      return;
+      url = window.db ? window.db.getApiUrl() : `${window.location.origin}/api`;
+      if (urlInput) urlInput.value = url;
     }
 
     const btn = document.getElementById('btn-test-pgsql');
@@ -1759,8 +1760,11 @@ class App {
     const res = await window.db.syncWithServer();
     if (res.success) {
       this.renderCurrentTab();
+      this.updateHeaderStats();
       if (window.confetti) window.confetti({ particleCount: 50, spread: 60 });
       alert('✅ ' + res.message);
+    } else {
+      alert('❌ Falha ao sincronizar: ' + (res.error || res.message || 'Verifique a conexão'));
     }
   }
 
