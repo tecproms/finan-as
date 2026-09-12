@@ -1694,8 +1694,8 @@ class App {
       const wApps = document.getElementById('setting-whaticket-appointments');
 
       let safeWhaticketUrl = (wCfg.apiUrl || '').trim();
-      if (!safeWhaticketUrl || safeWhaticketUrl.includes('financas.techproms.com.br') || safeWhaticketUrl.includes('76.13.163.214')) {
-        safeWhaticketUrl = 'https://api-whaticket.bascully.com.br';
+      if (!safeWhaticketUrl || safeWhaticketUrl.includes('financas.techproms.com.br') || safeWhaticketUrl.includes('bascully') || safeWhaticketUrl.includes('76.13.163.214')) {
+        safeWhaticketUrl = 'https://api-atendimento.techproms.com.br';
       }
       if (wUrl) wUrl.value = safeWhaticketUrl;
       if (wToken) wToken.value = wCfg.token || '';
@@ -2018,7 +2018,7 @@ class App {
     // Salva configurações Whaticket (WhatsApp)
     const waService = window.whaticketService || window.evolutionService;
     if (waService) {
-      const wUrl = document.getElementById('setting-whaticket-url')?.value.trim() || 'https://api-whaticket.bascully.com.br';
+      const wUrl = document.getElementById('setting-whaticket-url')?.value.trim() || 'https://api-atendimento.techproms.com.br';
       const wToken = document.getElementById('setting-whaticket-token')?.value.trim() || '';
       const wPhone = document.getElementById('setting-whaticket-phone')?.value.trim() || '5567981203317';
       const wSummary = document.getElementById('setting-whaticket-summary')?.checked !== false;
@@ -2069,9 +2069,9 @@ class App {
     const waService = window.whaticketService || window.evolutionService;
     if (!waService) return;
 
-    let url = document.getElementById('setting-whaticket-url')?.value.trim() || 'https://api-whaticket.bascully.com.br';
-    if (!url || url.includes('financas.techproms.com.br') || url.includes('76.13.163.214')) {
-      url = 'https://api-whaticket.bascully.com.br';
+    let url = document.getElementById('setting-whaticket-url')?.value.trim() || 'https://api-atendimento.techproms.com.br';
+    if (!url || url.includes('financas.techproms.com.br') || url.includes('bascully') || url.includes('76.13.163.214')) {
+      url = 'https://api-atendimento.techproms.com.br';
       const wUrlEl = document.getElementById('setting-whaticket-url');
       if (wUrlEl) wUrlEl.value = url;
     }
@@ -2267,7 +2267,7 @@ class App {
     // Constrói URL direta para download do APK instalável
     let base = window.location.origin;
     if (!base || base.includes('localhost') || base.includes('127.0.0.1')) {
-      base = 'https://finan.bascully.com.br';
+      base = 'https://financas.techproms.com.br';
     }
     const targetUrl = `${base}/FinControl-Pro.apk`;
 

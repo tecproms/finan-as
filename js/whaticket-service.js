@@ -11,8 +11,8 @@ class WhaticketService {
     const settings = window.db ? window.db.getSettings() : {};
     const w = settings.whaticket || settings.evolution || {};
     let apiUrl = (w.apiUrl || '').trim();
-    if (!apiUrl || apiUrl.includes('financas.techproms.com.br') || apiUrl.includes('76.13.163.214')) {
-      apiUrl = 'https://api-whaticket.bascully.com.br';
+    if (!apiUrl || apiUrl.includes('financas.techproms.com.br') || apiUrl.includes('bascully') || apiUrl.includes('76.13.163.214')) {
+      apiUrl = 'https://api-atendimento.techproms.com.br';
     }
     return {
       apiUrl: apiUrl,
@@ -48,13 +48,13 @@ class WhaticketService {
   // Formata a URL base removendo barras finais
   getBaseUrl(customUrl = null) {
     const config = this.getConfig();
-    let url = (customUrl || config.apiUrl || 'https://api-whaticket.bascully.com.br').trim();
-    if (!url || url.includes('financas.techproms.com.br') || url.includes('76.13.163.214')) {
-      url = 'https://api-whaticket.bascully.com.br';
+    let url = (customUrl || config.apiUrl || 'https://api-atendimento.techproms.com.br').trim();
+    if (!url || url.includes('financas.techproms.com.br') || url.includes('bascully') || url.includes('76.13.163.214')) {
+      url = 'https://api-atendimento.techproms.com.br';
     }
-    // Se o usuário digitou sem o prefixo api- (ex: whaticket.bascully.com.br), ajusta para api-whaticket
-    if (url.includes('whaticket.bascully.com.br') && !url.includes('api-whaticket.bascully.com.br')) {
-      url = url.replace('whaticket.bascully.com.br', 'api-whaticket.bascully.com.br');
+    // Se o usuário digitou sem o prefixo api- (ex: atendimento.techproms.com.br), ajusta para api-atendimento
+    if (url.includes('atendimento.techproms.com.br') && !url.includes('api-atendimento.techproms.com.br')) {
+      url = url.replace('atendimento.techproms.com.br', 'api-atendimento.techproms.com.br');
     }
     // Remove sufixos que o usuário possa ter copiado da documentação
     url = url.replace(/\/api\/messages\/send\/?$/i, '')

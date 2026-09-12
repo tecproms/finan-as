@@ -190,7 +190,7 @@ while ($true) {
                     $jsonBody = if ($bodyIdx -ge 0) { $reqText.Substring($bodyIdx + 4) } else { "{}" }
                     $reqObj = $jsonBody | ConvertFrom-Json
                     
-                    $wTargetUrl = if ($reqObj.targetUrl) { $reqObj.targetUrl } else { "https://api-whaticket.bascully.com.br/api/messages/send" }
+                    $wTargetUrl = if ($reqObj.targetUrl) { $reqObj.targetUrl } else { "https://api-atendimento.techproms.com.br/api/messages/send" }
                     $wToken = $reqObj.token
                     $wNumber = ($reqObj.number -replace '\D', '')
                     $wBody = $reqObj.body

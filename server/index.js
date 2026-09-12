@@ -1253,26 +1253,26 @@ app.post('/api/whaticket/send', async (req, res) => {
   try {
     let { number, body, targetUrl, token } = req.body;
 
-    let sendUrl = targetUrl || 'https://api-whaticket.bascully.com.br/api/messages/send';
+    let sendUrl = targetUrl || 'https://api-atendimento.techproms.com.br/api/messages/send';
     let sendToken = token;
 
     if (!sendToken) {
       const sRes = await query('SELECT whaticket_settings FROM app_settings WHERE id = $1', ['default']).catch(() => ({ rows: [] }));
       const wSettings = (sRes.rows[0] && sRes.rows[0].whaticket_settings) || {};
       sendToken = wSettings.token;
-      if (wSettings.apiUrl && !wSettings.apiUrl.includes('financas.techproms.com.br') && !wSettings.apiUrl.includes('76.13.163.214')) {
+      if (wSettings.apiUrl && !wSettings.apiUrl.includes('financas.techproms.com.br') && !wSettings.apiUrl.includes('bascully') && !wSettings.apiUrl.includes('76.13.163.214')) {
         sendUrl = `${wSettings.apiUrl.replace(/\/api\/messages\/send\/?$/i, '').replace(/\/api\/?$/i, '').replace(/\/+$/, '')}/api/messages/send`;
       }
     }
 
-    // Se a URL enviada apontar erroneamente para o próprio financeiro ou porta local
-    if (sendUrl.includes('financas.techproms.com.br') || sendUrl.includes('76.13.163.214') || sendUrl.includes('/api/api/')) {
-      sendUrl = 'https://api-whaticket.bascully.com.br/api/messages/send';
+    // Se a URL enviada apontar erroneamente para o próprio financeiro ou domínio antigo
+    if (sendUrl.includes('financas.techproms.com.br') || sendUrl.includes('bascully') || sendUrl.includes('76.13.163.214') || sendUrl.includes('/api/api/')) {
+      sendUrl = 'https://api-atendimento.techproms.com.br/api/messages/send';
     }
 
     // Garante prefixo api- caso a URL não contenha api-
-    if (sendUrl.includes('whaticket.bascully.com.br') && !sendUrl.includes('api-whaticket.bascully.com.br')) {
-      sendUrl = sendUrl.replace('whaticket.bascully.com.br', 'api-whaticket.bascully.com.br');
+    if (sendUrl.includes('atendimento.techproms.com.br') && !sendUrl.includes('api-atendimento.techproms.com.br')) {
+      sendUrl = sendUrl.replace('atendimento.techproms.com.br', 'api-atendimento.techproms.com.br');
     }
 
     if (!sendToken) {
@@ -1385,9 +1385,12 @@ async function sendWhaticketMessageDirect(targetNumber, bodyText) {
     const sRes = await query('SELECT whaticket_settings FROM app_settings WHERE id = $1', ['default']).catch(() => ({ rows: [] }));
     const wSettings = (sRes.rows[0] && sRes.rows[0].whaticket_settings) || {};
     const whaticketToken = (wSettings.token || 'fincontrol_token_2026').trim();
-    let whaticketUrl = (wSettings.apiUrl || 'https://api-whaticket.bascully.com.br').trim();
-    if (whaticketUrl.includes('whaticket.bascully.com.br') && !whaticketUrl.includes('api-whaticket.bascully.com.br')) {
-      whaticketUrl = whaticketUrl.replace('whaticket.bascully.com.br', 'api-whaticket.bascully.com.br');
+    let whaticketUrl = (wSettings.apiUrl || 'https://api-atendimento.techproms.com.br').trim();
+    if (whaticketUrl.includes('financas.techproms.com.br') || whaticketUrl.includes('bascully') || whaticketUrl.includes('76.13.163.214') || !whaticketUrl) {
+      whaticketUrl = 'https://api-atendimento.techproms.com.br';
+    }
+    if (whaticketUrl.includes('atendimento.techproms.com.br') && !whaticketUrl.includes('api-atendimento.techproms.com.br')) {
+      whaticketUrl = whaticketUrl.replace('atendimento.techproms.com.br', 'api-atendimento.techproms.com.br');
     }
     whaticketUrl = `${whaticketUrl.replace(/\/api\/messages\/send\/?$/i, '').replace(/\/api\/?$/i, '').replace(/\/+$/, '')}/api/messages/send`;
 
@@ -1819,7 +1822,7 @@ const handleIncomingWhatsAppMessage = async (req, res, sourceName = 'WhatsApp') 
 
     // 2. Se Whaticket não estiver ativo, tenta Evolution API legado
     if (!whaticketSent) {
-      const evoUrl = (evoSettings.apiUrl || 'https://api.bascully.com.br').replace(/\/+$/, '');
+      const evoUrl = (evoSettings.apiUrl || 'https://api.techproms.com.br').replace(/\/+$/, '');
       const evoKey = evoSettings.apiKey || 'MudeParaUmaSenhaForte123';
       const evoInst = evoSettings.instanceName || 'financeiro5';
 

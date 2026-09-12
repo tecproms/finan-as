@@ -33,7 +33,7 @@ public class MainActivity extends AppCompatActivity {
     private ValueCallback<Uri[]> mUploadMessage;
     private final static int FILECHOOSER_RESULTCODE = 1;
     private final static int PERMISSION_REQUEST_CODE = 100;
-    private final static String APP_URL = "https://finan.bascully.com.br";
+    private final static String APP_URL = "https://financas.techproms.com.br";
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -82,7 +82,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 String url = request.getUrl().toString();
-                if (url.startsWith("https://finan.bascully.com.br") || url.startsWith("http://76.13.163.214") || url.startsWith("http://finan.bascully.com.br")) {
+                if (url.startsWith("https://financas.techproms.com.br") || url.startsWith("http://76.13.163.214")) {
                     return false; // Carrega dentro do WebView
                 }
                 // Links externos (WhatsApp, etc) abre no navegador do celular
