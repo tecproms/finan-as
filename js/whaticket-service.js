@@ -10,8 +10,12 @@ class WhaticketService {
   getConfig() {
     const settings = window.db ? window.db.getSettings() : {};
     const w = settings.whaticket || settings.evolution || {};
+    let apiUrl = (w.apiUrl || '').trim();
+    if (!apiUrl || apiUrl.includes('financas.techproms.com.br') || apiUrl.includes('76.13.163.214')) {
+      apiUrl = 'https://api-whaticket.bascully.com.br';
+    }
     return {
-      apiUrl: w.apiUrl || 'https://api-whaticket.bascully.com.br',
+      apiUrl: apiUrl,
       token: w.token || '',
       userPhone: w.userPhone || '5567981203317',
       notifySummary: w.notifySummary !== false,
@@ -45,6 +49,9 @@ class WhaticketService {
   getBaseUrl(customUrl = null) {
     const config = this.getConfig();
     let url = (customUrl || config.apiUrl || 'https://api-whaticket.bascully.com.br').trim();
+    if (!url || url.includes('financas.techproms.com.br') || url.includes('76.13.163.214')) {
+      url = 'https://api-whaticket.bascully.com.br';
+    }
     // Se o usuário digitou sem o prefixo api- (ex: whaticket.bascully.com.br), ajusta para api-whaticket
     if (url.includes('whaticket.bascully.com.br') && !url.includes('api-whaticket.bascully.com.br')) {
       url = url.replace('whaticket.bascully.com.br', 'api-whaticket.bascully.com.br');
@@ -97,10 +104,10 @@ class WhaticketService {
             message: proxyJson.error || proxyJson.message || 'Erro retornado pela API do Whaticket'
           };
         }
-      } else if (proxyResp.status === 404) {
+      } else {
         return {
           success: false,
-          message: 'O endpoint do Whaticket ainda não está ativo no seu VPS. Atualize o servidor executando no terminal do VPS:\ncd /www/wwwroot/financeirotechpro && git pull origin main && pm2 restart all'
+          message: `Falha ao conectar com o serviço do Whaticket (HTTP ${proxyResp.status}). Verifique se a URL e o Token estão corretos.`
         };
       }
     } catch (proxyErr) {

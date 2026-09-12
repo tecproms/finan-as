@@ -1693,7 +1693,11 @@ class App {
       const wSummary = document.getElementById('setting-whaticket-summary');
       const wApps = document.getElementById('setting-whaticket-appointments');
 
-      if (wUrl) wUrl.value = wCfg.apiUrl || 'https://api-whaticket.bascully.com.br';
+      let safeWhaticketUrl = (wCfg.apiUrl || '').trim();
+      if (!safeWhaticketUrl || safeWhaticketUrl.includes('financas.techproms.com.br') || safeWhaticketUrl.includes('76.13.163.214')) {
+        safeWhaticketUrl = 'https://api-whaticket.bascully.com.br';
+      }
+      if (wUrl) wUrl.value = safeWhaticketUrl;
       if (wToken) wToken.value = wCfg.token || '';
       if (wPhone) wPhone.value = wCfg.userPhone || '5567981203317';
       if (wSummary) wSummary.checked = wCfg.notifySummary !== false;
@@ -2065,7 +2069,12 @@ class App {
     const waService = window.whaticketService || window.evolutionService;
     if (!waService) return;
 
-    const url = document.getElementById('setting-whaticket-url')?.value.trim() || 'https://api-whaticket.bascully.com.br';
+    let url = document.getElementById('setting-whaticket-url')?.value.trim() || 'https://api-whaticket.bascully.com.br';
+    if (!url || url.includes('financas.techproms.com.br') || url.includes('76.13.163.214')) {
+      url = 'https://api-whaticket.bascully.com.br';
+      const wUrlEl = document.getElementById('setting-whaticket-url');
+      if (wUrlEl) wUrlEl.value = url;
+    }
     const token = document.getElementById('setting-whaticket-token')?.value.trim() || '';
     const phone = document.getElementById('setting-whaticket-phone')?.value.trim() || '5567981203317';
 

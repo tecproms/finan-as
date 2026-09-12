@@ -1251,7 +1251,7 @@ app.post('/api/pluggy/webhook', async (req, res) => {
 // Envio de mensagens de texto via Whaticket
 app.post('/api/whaticket/send', async (req, res) => {
   try {
-    const { number, body, targetUrl, token } = req.body;
+    let { number, body, targetUrl, token } = req.body;
 
     let sendUrl = targetUrl || 'https://api-whaticket.bascully.com.br/api/messages/send';
     let sendToken = token;
@@ -1260,9 +1260,14 @@ app.post('/api/whaticket/send', async (req, res) => {
       const sRes = await query('SELECT whaticket_settings FROM app_settings WHERE id = $1', ['default']).catch(() => ({ rows: [] }));
       const wSettings = (sRes.rows[0] && sRes.rows[0].whaticket_settings) || {};
       sendToken = wSettings.token;
-      if (wSettings.apiUrl) {
-        sendUrl = `${wSettings.apiUrl.replace(/\/+$/, '')}/api/messages/send`;
+      if (wSettings.apiUrl && !wSettings.apiUrl.includes('financas.techproms.com.br') && !wSettings.apiUrl.includes('76.13.163.214')) {
+        sendUrl = `${wSettings.apiUrl.replace(/\/api\/messages\/send\/?$/i, '').replace(/\/api\/?$/i, '').replace(/\/+$/, '')}/api/messages/send`;
       }
+    }
+
+    // Se a URL enviada apontar erroneamente para o próprio financeiro ou porta local
+    if (sendUrl.includes('financas.techproms.com.br') || sendUrl.includes('76.13.163.214') || sendUrl.includes('/api/api/')) {
+      sendUrl = 'https://api-whaticket.bascully.com.br/api/messages/send';
     }
 
     // Garante prefixo api- caso a URL não contenha api-
@@ -1271,11 +1276,11 @@ app.post('/api/whaticket/send', async (req, res) => {
     }
 
     if (!sendToken) {
-      return res.status(400).json({ success: false, error: 'Token do Whaticket não informado nem configurado.' });
+      return res.json({ success: false, error: 'Token do Whaticket não informado nem configurado.' });
     }
 
     if (!number || !body) {
-      return res.status(400).json({ success: false, error: 'Campos "number" e "body" são obrigatórios.' });
+      return res.json({ success: false, error: 'Campos "number" e "body" são obrigatórios.' });
     }
 
     const cleanNum = String(number).replace(/\D/g, '');
@@ -1303,11 +1308,11 @@ app.post('/api/whaticket/send', async (req, res) => {
     if (response.ok) {
       res.json({ success: true, status: response.status, data: data });
     } else {
-      const errMsg = (typeof data === 'object' ? (data?.message || data?.error) : data) || 'Erro retornado pela API do Whaticket';
-      res.status(response.status).json({ success: false, status: response.status, data: data, error: errMsg });
+      const errMsg = (typeof data === 'object' ? (data?.message || data?.error) : data) || `Falha no Whaticket (HTTP ${response.status}). Verifique o Token e a URL.`;
+      res.json({ success: false, status: response.status, data: data, error: errMsg });
     }
   } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    res.json({ success: false, error: err.message });
   }
 });
 
